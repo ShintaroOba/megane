@@ -36,6 +36,7 @@ Claude Code がもともと書き出している会話ログ（`~/.claude/projec
 | **見る** | ` ```mermaid ` は図に、` ```html ` / ` ```svg ` は sandbox 付き iframe で描画。画像（自分の・Claude の・ツールのスクショ）もその場で表示し、クリックで拡大 |
 | **絞る** | ツール呼び出しは 1 行の要約に折りたたみ。チェックボックス 1 つで丸ごと非表示 |
 | **見せる** | ビューアに Ctrl+V かドラッグ＆ドロップでスクショを入れると、次のプロンプトで Claude に渡る |
+| **答える** | Claude が質問したとき、プランの承認を求めたとき、ツールの実行許可を求めたときに、ビューアにカードが出る。選択肢を選ぶ、プランを承認・差し戻す、実行を許可・拒否する、がその場でできる |
 
 ## スキルではじめる
 
@@ -98,7 +99,7 @@ curl -fsSL https://raw.githubusercontent.com/ShintaroOba/megane/main/scripts/ins
 irm https://raw.githubusercontent.com/ShintaroOba/megane/main/scripts/install.ps1 | iex
 ```
 
-`MEGANE_INSTALL_DIR` で置き場所を、`MEGANE_VERSION=v0.1.0` でバージョンを指定できます。
+`MEGANE_INSTALL_DIR` で置き場所を、`MEGANE_VERSION=v0.2.0` でバージョンを指定できます。
 Rust のツールチェーンがあれば `cargo install --git https://github.com/ShintaroOba/megane` でも入ります。
 
 ### セッションを開く
@@ -121,13 +122,20 @@ megane serve             # サーバーをフォアグラウンドで起動
 | `--port <n>` / `MEGANE_PORT` | `4317` | 待ち受けポート |
 | `CLAUDE_CONFIG_DIR` | `~/.claude` | 読み取る Claude Code の設定ディレクトリ |
 
-プラグインを使わずにスクショを Claude に渡したい場合は、`~/.claude/settings.json` に hook を自分で追加します。
+プラグインを使わない場合は、`~/.claude/settings.json` に hook を自分で追加します。`prompt` は貼り付けたスクショを Claude に渡し、`pretool` と `permission` は質問・プラン承認・実行許可にビューアから答えられるようにします。
 
 ```json
 {
   "hooks": {
     "UserPromptSubmit": [
       { "hooks": [{ "type": "command", "command": "megane hook prompt" }] }
+    ],
+    "PreToolUse": [
+      { "matcher": "AskUserQuestion|ExitPlanMode",
+        "hooks": [{ "type": "command", "command": "megane hook pretool", "timeout": 600 }] }
+    ],
+    "PermissionRequest": [
+      { "hooks": [{ "type": "command", "command": "megane hook permission", "timeout": 600 }] }
     ]
   }
 }
@@ -143,8 +151,14 @@ MEGANE は `claude` のプロセスもターミナルも包まないので、セ
 
 **ブラウザからプロンプトを送れますか？**
 
-送れません。MEGANE は読むだけで、入力はターミナルで行います。ブラウザからセッションを操作したい場合は
-[OYAKATA](https://github.com/ShintaroOba/oyakata) を使ってください。
+プロンプトはこれまでどおりターミナルで打ちます。ブラウザからできるのは、Claude から *あなたへの* 問いかけに答えることです。
+質問（AskUserQuestion）、プランの承認（ExitPlanMode）、ツールの実行許可に答えられます。
+
+これが働くのは、ビューアのタブが表示されていて、ヘッダーの **ブラウザで回答** がオンのときだけです。
+それ以外のときや、カードの「ターミナルで答える」を押したときは、Claude Code はいつもどおりターミナルで尋ねます。
+カードが回答を待っている間はターミナル側に答える欄が出ないので、ブラウザを見てください（タブのタイトルが ❓ で始まります）。
+
+ブラウザからプロンプトも送りたい場合は [OYAKATA](https://github.com/ShintaroOba/oyakata) を使ってください。
 
 **データはどこかに送られますか？**
 
@@ -174,6 +188,11 @@ Write diagrams in ```mermaid fences (MEGANE renders them in the browser). Do not
   Markdown は DOMPurify で無害化し、Mermaid は `securityLevel: strict` で動かします。
 - **ローカル画像**（`![](C:\path\shot.png)` のようなリンク）は `/api/file` 経由で配信します。画像の拡張子に限り、
   `Content-Security-Policy: sandbox` を付けます。
+- **ブラウザからの回答**は、キー入力の流し込みではなく公式の hook で行います。`megane hook pretool`（AskUserQuestion と ExitPlanMode の PreToolUse）と
+  `megane hook permission`（PermissionRequest）が問いかけをサーバーに送って待ち、サーバーがビューアに転送して、答えが来たら返します。
+  hook は `permissionDecision: allow` と `updatedInput.answers`、理由付きの拒否、または PermissionRequest の `decision` を出力します。
+  答えられるビューアがない、ビューアが閉じた、ターミナルに戻された、9 分経った、のいずれかなら hook は何も出力せず、Claude Code はターミナルで尋ねます。
+  「常に許可」は Claude Code が提示する `permission_suggestions` をそのまま適用します。
 - **ネットワーク**：`Host` が `127.0.0.1` / `localhost` 以外のリクエストは拒否し（DNS リバインディング対策）、
   書き込み系のリクエストには同一オリジンの `Origin` ヘッダを求めます。
 
@@ -194,7 +213,7 @@ MSVC ツールチェーンなら追加のものは要りません。
 `.github/workflows/release.yml` が 6 ターゲットをビルドして GitHub Release に添付し、インストールスクリプトはそこから取得します。
 
 ```bash
-git tag v0.1.0 && git push origin v0.1.0
+git tag v0.2.0 && git push origin v0.2.0
 ```
 
 ```

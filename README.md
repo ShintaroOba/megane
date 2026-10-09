@@ -36,6 +36,7 @@ Everything stays on your machine.
 | **See** | ` ```mermaid ` fences become diagrams, ` ```html ` / ` ```svg ` fences render in a sandboxed iframe, and images (yours, Claude's, tool screenshots) show inline. Click to zoom |
 | **Focus** | Tool calls fold into one-line summaries. Hide them entirely with one checkbox |
 | **Show** | Paste (Ctrl+V) or drop a screenshot into the viewer, and Claude gets it with your next prompt |
+| **Answer** | When Claude asks a question, wants a plan approved or needs permission to run a tool, a card appears in the viewer. Pick an option, approve or send back the plan, or allow / deny the tool, right there |
 
 ## Get started with the skill
 
@@ -102,7 +103,7 @@ curl -fsSL https://raw.githubusercontent.com/ShintaroOba/megane/main/scripts/ins
 irm https://raw.githubusercontent.com/ShintaroOba/megane/main/scripts/install.ps1 | iex
 ```
 
-`MEGANE_INSTALL_DIR` changes the location and `MEGANE_VERSION=v0.1.0` pins a release. With a Rust
+`MEGANE_INSTALL_DIR` changes the location and `MEGANE_VERSION=v0.2.0` pins a release. With a Rust
 toolchain, `cargo install --git https://github.com/ShintaroOba/megane` works too.
 
 ### Open a session
@@ -126,13 +127,20 @@ in the current directory.
 | `--port <n>` / `MEGANE_PORT` | `4317` | Port to listen on |
 | `CLAUDE_CONFIG_DIR` | `~/.claude` | Claude Code config directory to read from |
 
-Without the plugin, hand screenshots to Claude by adding the hook to `~/.claude/settings.json` yourself:
+Without the plugin, add the hooks to `~/.claude/settings.json` yourself. `prompt` hands pasted screenshots to Claude; `pretool` and `permission` let the viewer answer questions, plan approvals and permission prompts:
 
 ```json
 {
   "hooks": {
     "UserPromptSubmit": [
       { "hooks": [{ "type": "command", "command": "megane hook prompt" }] }
+    ],
+    "PreToolUse": [
+      { "matcher": "AskUserQuestion|ExitPlanMode",
+        "hooks": [{ "type": "command", "command": "megane hook pretool", "timeout": 600 }] }
+    ],
+    "PermissionRequest": [
+      { "hooks": [{ "type": "command", "command": "megane hook permission", "timeout": 600 }] }
     ]
   }
 }
@@ -148,8 +156,15 @@ Every session has a stable URL, `http://127.0.0.1:4317/s/<session-id>`. Get it w
 
 **Can I send prompts from the browser?**
 
-No. MEGANE only reads; you keep typing in the terminal. If you want a browser command post that also
-drives sessions, see [OYAKATA](https://github.com/ShintaroOba/oyakata).
+No. You keep typing prompts in the terminal. What the browser can do is answer what Claude asks *you*:
+questions (AskUserQuestion), plan approvals (ExitPlanMode) and permission prompts.
+
+This only happens while a viewer tab is visible and **ブラウザで回答** (answer in the browser) is on in its
+header. Otherwise, and whenever you press "ターミナルで答える" (answer in the terminal) on a card, Claude Code
+asks in the terminal as usual. While a card is waiting, the terminal shows nothing to answer, so look at the
+browser (the tab title starts with ❓).
+
+If you want a browser command post that also sends prompts, see [OYAKATA](https://github.com/ShintaroOba/oyakata).
 
 **Where does my data go?**
 
@@ -181,6 +196,13 @@ Write diagrams in ```mermaid fences (MEGANE renders them in the browser). Do not
   to the viewer's origin. Markdown is sanitised with DOMPurify, and Mermaid runs with `securityLevel: strict`.
 - **Local images** that a message links to (`![](C:\path\shot.png)`) are served through `/api/file`,
   for image extensions only, with `Content-Security-Policy: sandbox`.
+- **Answering from the browser** uses documented hooks, not keystrokes. `megane hook pretool` (PreToolUse on
+  AskUserQuestion and ExitPlanMode) and `megane hook permission` (PermissionRequest) send the prompt to the
+  server and wait. The server forwards it to the viewers, and returns the answer when one comes. The hook then
+  prints `permissionDecision: allow` with `updatedInput.answers`, a deny with your message, or a
+  PermissionRequest `decision`. When no viewer is ready, the viewer closes, you hand it back, or 9 minutes
+  pass, the hook prints nothing and Claude Code asks in the terminal. "Always allow" applies the
+  `permission_suggestions` Claude Code offers.
 - **Network.** Requests whose `Host` is not `127.0.0.1` / `localhost` are refused (DNS rebinding),
   and writes need a same-origin `Origin` header.
 
@@ -202,7 +224,7 @@ push a `vX.Y.Z` tag. `.github/workflows/release.yml` builds six targets and atta
 GitHub Release, which is where the install scripts download from.
 
 ```bash
-git tag v0.1.0 && git push origin v0.1.0
+git tag v0.2.0 && git push origin v0.2.0
 ```
 
 ```

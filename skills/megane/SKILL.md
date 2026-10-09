@@ -61,6 +61,14 @@ While MEGANE is open, this session's replies are rendered as HTML. Follow these 
 - To show an image file on disk, link it with its absolute path: `![caption](C:\path\shot.png)`.
 - No terminal-style alignment (full-width spaces, ruled boxes).
 
+## Answers from the browser
+
+When the user answers an AskUserQuestion in the viewer, the tool result carries the answers
+as usual. A plan rejected or a permission denied in the viewer comes back as a denial whose
+reason starts with "The user rejected the plan in the MEGANE viewer" or "The user denied this in
+the MEGANE viewer", followed by the user's instructions if any. Follow those instructions; do not
+retry the same call unchanged.
+
 ## Screenshots from the user
 
 The user can paste (Ctrl+V) or drop an image into the viewer. It is saved under
@@ -71,8 +79,12 @@ copied to the clipboard) into the prompt instead.
 
 ## When the user asks how it works
 
-- MEGANE only reads. Prompts are still typed in the terminal. For a browser that also
-  drives sessions, point to OYAKATA (https://github.com/ShintaroOba/oyakata).
+- Prompts are still typed in the terminal. The viewer can answer what Claude asks the user:
+  AskUserQuestion, ExitPlanMode plan approvals and permission prompts (the plugin's
+  PreToolUse / PermissionRequest hooks). That happens only while a viewer tab is visible and
+  its "ブラウザで回答" toggle is on; otherwise, or when the user presses "ターミナルで答える" on
+  the card, Claude Code asks in the terminal as usual. For a browser that also sends prompts,
+  point to OYAKATA (https://github.com/ShintaroOba/oyakata).
 - `megane open --list` opens the list of all sessions; `megane open --print` prints the
   URL without launching a browser, for opening it from Orca or another session manager.
 - The server listens on `127.0.0.1:4317` (`--port` or `MEGANE_PORT` to change it) and reads

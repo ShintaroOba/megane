@@ -48,6 +48,10 @@ enum Cmd {
 enum HookKind {
     /// UserPromptSubmit: hand images pasted into the viewer to Claude
     Prompt,
+    /// PreToolUse (AskUserQuestion, ExitPlanMode): let the viewer answer
+    Pretool,
+    /// PermissionRequest: let the viewer allow or deny
+    Permission,
 }
 
 fn main() -> Result<()> {
@@ -55,6 +59,8 @@ fn main() -> Result<()> {
     match cli.cmd.unwrap_or(Cmd::Open { session: None, list: false, print: false }) {
         Cmd::Serve => tokio::runtime::Runtime::new()?.block_on(server::serve(cli.port)),
         Cmd::Hook { kind: HookKind::Prompt } => hook::prompt(),
+        Cmd::Hook { kind: HookKind::Pretool } => hook::ask(cli.port, hook::Ask::PreTool),
+        Cmd::Hook { kind: HookKind::Permission } => hook::ask(cli.port, hook::Ask::Permission),
         Cmd::Open { session, list, print } => open(cli.port, session, list, print),
     }
 }

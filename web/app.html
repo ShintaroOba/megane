@@ -98,6 +98,33 @@ body.dragging::after { content: "ここにドロップして画像を Claude に
 #zoom.on { display: grid; }
 #zoom img { max-width: 100%; max-height: 100%; }
 .empty { color: var(--muted); text-align: center; padding: 48px 0; }
+
+/* answering from the browser */
+#asks { position: fixed; left: 50%; bottom: 52px; transform: translateX(-50%); width: min(760px, calc(100vw - 32px)); max-height: 72vh; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; z-index: 15; }
+.ask { background: var(--surface); border: 2px solid var(--accent); border-radius: 12px; padding: 12px 16px; box-shadow: 0 10px 32px rgb(0 0 0 / .22); }
+.ask.sent { opacity: .55; }
+.ask .kind { font-size: 12px; font-weight: 700; color: var(--accent); letter-spacing: .04em; }
+.ask .what { font-weight: 600; margin: 2px 0 8px; word-break: break-all; }
+.ask .what code { font-family: var(--mono); font-size: 13px; }
+.ask .q { margin: 10px 0; }
+.ask .chip { display: inline-block; font-size: 11px; font-weight: 700; color: var(--muted); border: 1px solid var(--border); border-radius: 999px; padding: 0 8px; margin-right: 6px; }
+.ask .opt { display: flex; gap: 8px; align-items: flex-start; padding: 6px 10px; margin: 4px 0; border: 1px solid var(--border); border-radius: 8px; cursor: pointer; }
+.ask .opt:hover { border-color: var(--accent); }
+.ask .opt:has(input:checked) { border-color: var(--accent); background: var(--accent-soft); }
+.ask .opt input[type=radio], .ask .opt input[type=checkbox] { margin-top: 5px; accent-color: var(--accent); }
+.ask .opt .d { display: block; font-size: 12px; color: var(--muted); }
+.ask .opt input[type=text] { width: 100%; margin-top: 4px; }
+.ask input[type=text], .ask textarea { font: inherit; font-size: 13px; color: var(--text); background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 5px 8px; width: 100%; }
+.ask textarea { min-height: 3.2em; resize: vertical; }
+.ask .plan { max-height: 40vh; overflow: auto; border: 1px solid var(--border); border-radius: 8px; padding: 8px 12px; margin: 6px 0; }
+.ask details pre { font: 12px/1.5 var(--mono); white-space: pre-wrap; word-break: break-all; max-height: 30vh; overflow: auto; background: var(--bg); border-radius: 6px; padding: 8px; margin: 4px 0; }
+.ask .actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 10px; }
+.ask .actions .grow { flex: 1; }
+.ask button { font: inherit; font-size: 13px; border-radius: 8px; padding: 5px 14px; cursor: pointer; border: 1px solid var(--border); background: var(--surface-2); color: var(--text); }
+.ask button.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 700; }
+.ask button.danger { color: var(--error); }
+.ask button.link { background: none; border: none; color: var(--muted); text-decoration: underline; padding: 5px 4px; }
+.ask .missing { outline: 2px solid var(--error); outline-offset: 2px; border-radius: 8px; }
 </style>
 </head>
 <body>
@@ -105,9 +132,11 @@ body.dragging::after { content: "ここにドロップして画像を Claude に
   <a class="brand" href="/"><img src="/icon.svg" alt="">MEGANE</a>
   <span class="dot" id="dot"></span>
   <span class="title" id="title"></span>
+  <label id="answerToggle" hidden title="オンでタブが表示されている間は、Claude の質問・プラン承認・実行許可をこの画面で答えます"><input type="checkbox" id="answerHere" checked>ブラウザで回答</label>
   <label id="toolToggle" hidden><input type="checkbox" id="showTools" checked>ツール</label>
 </header>
 <main id="main"></main>
+<div id="asks"></div>
 <div id="tray"></div>
 <div id="zoom"><img alt=""></div>
 <script>
@@ -216,17 +245,135 @@ function sessionView(id) {
     if (stick && ready) scrollTo(0, document.body.scrollHeight);
   }
 
+  const asks = setupAsks(id);
   const es = new EventSource(`/api/s/${id}/events`);
-  es.addEventListener('meta', e => { const m = JSON.parse(e.data); $('#title').textContent = m.title || m.id; document.title = (m.title || 'Session') + ' · MEGANE'; });
+  es.addEventListener('meta', e => { const m = JSON.parse(e.data); $('#title').textContent = m.title || m.id; document.title = (m.title || 'Session') + ' · MEGANE'; asks.setViewer(m.viewer); });
+  es.addEventListener('pending', e => asks.add(JSON.parse(e.data)));
+  es.addEventListener('resolved', e => asks.remove(JSON.parse(e.data).id));
   es.addEventListener('reset', () => { main.replaceChildren(); turn = null; pendingTools = []; ready = false; });
   es.addEventListener('msg', e => addMessage(JSON.parse(e.data)));
   es.addEventListener('ready', () => { ready = true; if (!main.children.length) main.append(h('p', 'empty', 'まだメッセージがありません')); scrollTo(0, document.body.scrollHeight); });
-  es.onopen = () => { dot.classList.add('live'); main.replaceChildren(); turn = null; pendingTools = []; ready = false; };
+  es.onopen = () => { dot.classList.add('live'); main.replaceChildren(); turn = null; pendingTools = []; ready = false; asks.clear(); };
   es.onerror = () => dot.classList.remove('live');
 
   const hint = h('div', 'hint', 'Ctrl+V / ドロップで画像を Claude に渡せます');
   document.body.append(hint);
   setupPaste(id, hint);
+}
+
+// ---------- answering questions, plans and permissions ----------
+// The server only routes a question here while some viewer reports itself "active" (tab
+// visible and the toggle on); otherwise Claude Code asks in the terminal as usual.
+function setupAsks(id) {
+  const box = $('#asks'), toggle = $('#answerHere');
+  $('#answerToggle').hidden = false;
+  try { toggle.checked = localStorage.getItem('megane.answer') !== '0'; } catch {}
+  let viewer = null;
+  const post = (path, body) => fetch(`/api/s/${id}/${path}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  const sendPresence = () => { if (viewer) post('presence', { viewer, active: toggle.checked && document.visibilityState === 'visible' }).catch(() => {}); };
+  toggle.onchange = () => { try { localStorage.setItem('megane.answer', toggle.checked ? '1' : '0'); } catch {} sendPresence(); };
+  document.addEventListener('visibilitychange', sendPresence);
+  const flag = () => { document.title = (box.children.length ? '❓ ' : '') + document.title.replace(/^❓ /, ''); };
+
+  function reply(card, answer) {
+    card.classList.add('sent');
+    card.querySelectorAll('button, input, textarea').forEach(el => el.disabled = true);
+    post('answer', { id: Number(card.dataset.pid), answer }).then(r => { if (!r.ok) { card.remove(); flag(); } });
+  }
+  const button = (label, cls, onclick) => { const b = h('button', cls, label); b.type = 'button'; b.onclick = onclick; return b; };
+  const terminal = card => button('ターミナルで答える', 'link', () => reply(card, { action: 'terminal' }));
+
+  function question(card, p) {
+    card.append(h('div', 'kind', 'Claude からの質問'));
+    const qs = p.tool_input.questions || [];
+    const groups = qs.map((q, i) => {
+      const g = h('div', 'q');
+      const title = h('div', 'what');
+      if (q.header) title.append(h('span', 'chip', q.header));
+      title.append(q.question);
+      g.append(title);
+      const type = q.multiSelect ? 'checkbox' : 'radio';
+      for (const o of q.options || []) {
+        const l = h('label', 'opt'), inp = h('input');
+        inp.type = type; inp.name = `q${p.id}-${i}`; inp.value = o.label;
+        const t = h('span'); t.append(o.label);
+        if (o.description) t.append(h('span', 'd', o.description));
+        l.append(inp, t); g.append(l);
+      }
+      const l = h('label', 'opt'), inp = h('input'), t = h('span'), other = h('input');
+      inp.type = type; inp.name = `q${p.id}-${i}`; inp.value = '';
+      other.type = 'text'; other.placeholder = 'その他（自由に入力）';
+      other.oninput = () => { inp.checked = other.value.trim() !== ''; };
+      t.append('その他', other); l.append(inp, t); g.append(l);
+      card.append(g);
+      return { q, g, other };
+    });
+    const submit = () => {
+      const answers = {};
+      let ok = true;
+      for (const { q, g, other } of groups) {
+        const picked = [...g.querySelectorAll('input:checked')].map(i => i.value || other.value.trim()).filter(Boolean);
+        g.classList.toggle('missing', !picked.length);
+        if (!picked.length) ok = false;
+        answers[q.question] = picked.join(', ');
+      }
+      if (ok) reply(card, { action: 'answer', answers });
+    };
+    const actions = h('div', 'actions');
+    actions.append(button('回答する', 'primary', submit), button('答えない', '', () => reply(card, { action: 'dismiss' })), h('span', 'grow'), terminal(card));
+    card.append(actions);
+  }
+
+  function plan(card, p) {
+    card.append(h('div', 'kind', 'プランの承認'));
+    const body = h('div', 'plan');
+    body.append(markdown(p.tool_input.plan || ''));
+    const feedback = h('textarea');
+    feedback.placeholder = '差し戻す場合の指示（任意）';
+    const actions = h('div', 'actions');
+    actions.append(
+      button('承認して進める', 'primary', () => reply(card, { action: 'approve' })),
+      button('差し戻す', 'danger', () => reply(card, { action: 'reject', message: feedback.value })),
+      h('span', 'grow'), terminal(card));
+    card.append(body, feedback, actions);
+  }
+
+  function permission(card, p) {
+    card.append(h('div', 'kind', '実行の許可'));
+    const input = p.tool_input || {};
+    const main = input.command || input.file_path || input.path || input.url || input.pattern || '';
+    const what = h('div', 'what');
+    what.append(h('span', 'chip', p.tool_name));
+    if (main) what.append(h('code', null, String(main)));
+    if (input.description) what.append(h('span', 'd', ' — ' + input.description));
+    const details = h('details'), sum = h('summary', null, '入力をすべて見る'), pre = h('pre', null, JSON.stringify(input, null, 2));
+    sum.style.cssText = 'cursor:pointer;font-size:12px;color:var(--muted)';
+    details.append(sum, pre);
+    const reason = h('input');
+    reason.type = 'text'; reason.placeholder = '拒否の理由・代わりにしてほしいこと（任意）';
+    const actions = h('div', 'actions');
+    actions.append(button('許可', 'primary', () => reply(card, { action: 'allow' })));
+    if (Array.isArray(p.suggestions) && p.suggestions.length) {
+      actions.append(button('常に許可', '', () => reply(card, { action: 'always' })));
+    }
+    actions.append(button('拒否', 'danger', () => reply(card, { action: 'deny', message: reason.value })), h('span', 'grow'), terminal(card));
+    card.append(what, details, reason, actions);
+  }
+
+  return {
+    setViewer(v) { viewer = v; sendPresence(); },
+    clear() { box.replaceChildren(); flag(); },
+    add(p) {
+      if (box.querySelector(`[data-pid="${p.id}"]`)) return;
+      const card = h('div', 'ask');
+      card.dataset.pid = p.id;
+      ({ question, plan, permission })[p.kind]?.(card, p);
+      box.append(card);
+      flag();
+      card.querySelector('button.primary')?.focus({ preventScroll: true });
+    },
+    remove(pid) { box.querySelector(`[data-pid="${pid}"]`)?.remove(); flag(); },
+  };
 }
 
 // ---------- paste & drop ----------

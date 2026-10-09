@@ -1,14 +1,25 @@
 {
-  "description": "Hand screenshots pasted into the MEGANE viewer to Claude with the next prompt",
+  "description": "MEGANE: hand screenshots pasted into the viewer to Claude, and let the viewer answer questions, plan approvals and permission prompts",
   "hooks": {
     "UserPromptSubmit": [
       {
         "hooks": [
-          {
-            "type": "command",
-            "command": "sh \"${CLAUDE_PLUGIN_ROOT}/scripts/hook.sh\"",
-            "timeout": 10
-          }
+          { "type": "command", "command": "sh \"${CLAUDE_PLUGIN_ROOT}/scripts/hook.sh\" prompt", "timeout": 10 }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "AskUserQuestion|ExitPlanMode",
+        "hooks": [
+          { "type": "command", "command": "sh \"${CLAUDE_PLUGIN_ROOT}/scripts/hook.sh\" pretool", "timeout": 600 }
+        ]
+      }
+    ],
+    "PermissionRequest": [
+      {
+        "hooks": [
+          { "type": "command", "command": "sh \"${CLAUDE_PLUGIN_ROOT}/scripts/hook.sh\" permission", "timeout": 600 }
         ]
       }
     ]
