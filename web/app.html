@@ -1,0 +1,286 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MEGANE</title>
+<link rel="icon" type="image/svg+xml" href="/icon.svg">
+<link rel="stylesheet" media="(prefers-color-scheme: light)" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/styles/github.min.css">
+<link rel="stylesheet" media="(prefers-color-scheme: dark)" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/styles/github-dark.min.css">
+<script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
+<script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/highlight.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.min.js"></script>
+<style>
+:root {
+  --bg: #fbfaf8; --surface: #ffffff; --surface-2: #f3f1ed; --border: #e4e0d8;
+  --text: #1f1d1a; --muted: #6f6a62; --accent: #c4622d; --accent-soft: #f6e4d8;
+  --user-bg: #eef2f7; --error: #b3261e; --ok: #2e7d4f;
+  --mono: "Cascadia Code", "Cascadia Mono", Consolas, "BIZ UDGothic", monospace;
+  --sans: system-ui, -apple-system, "Segoe UI", "Hiragino Sans", "Yu Gothic UI", Meiryo, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #1a1918; --surface: #232220; --surface-2: #2c2a27; --border: #3a3733;
+    --text: #ece8e1; --muted: #a39d93; --accent: #e08a5a; --accent-soft: #3d2a1f;
+    --user-bg: #252b33; --error: #f2817a; --ok: #7fcf9c;
+  }
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.7 var(--sans); }
+a { color: var(--accent); }
+header {
+  position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: 12px;
+  padding: 10px 16px; background: color-mix(in srgb, var(--bg) 88%, transparent);
+  backdrop-filter: blur(8px); border-bottom: 1px solid var(--border);
+}
+header .brand { font-weight: 700; letter-spacing: .02em; text-decoration: none; color: var(--text); }
+header .brand { display: flex; align-items: center; gap: 8px; }
+header .brand img { width: 22px; height: 22px; }
+header .title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); }
+header label { font-size: 13px; color: var(--muted); display: flex; gap: 4px; align-items: center; cursor: pointer; }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); flex: none; }
+.dot.live { background: var(--ok); }
+main { max-width: 920px; margin: 0 auto; padding: 16px 16px 160px; }
+
+/* session list */
+.filter { width: 100%; padding: 8px 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text); font: inherit; margin-bottom: 12px; }
+.session { display: block; padding: 10px 12px; border-radius: 8px; text-decoration: none; color: var(--text); border: 1px solid transparent; }
+.session:hover { background: var(--surface); border-color: var(--border); }
+.session .t { font-weight: 600; }
+.session .m { font-size: 12px; color: var(--muted); font-family: var(--mono); }
+
+/* conversation */
+.turn { margin: 18px 0; }
+.turn.user { background: var(--user-bg); border-radius: 12px; padding: 10px 16px; }
+.turn.user::before { content: "You"; display: block; font-size: 12px; font-weight: 700; color: var(--muted); }
+.md > :first-child { margin-top: 0; }
+.md > :last-child { margin-bottom: 0; }
+.md h1, .md h2, .md h3 { line-height: 1.35; margin: 1.2em 0 .5em; }
+.md h1 { font-size: 1.45em; } .md h2 { font-size: 1.25em; } .md h3 { font-size: 1.08em; }
+.md table { border-collapse: collapse; margin: .8em 0; display: block; overflow-x: auto; }
+.md th, .md td { border: 1px solid var(--border); padding: 5px 10px; text-align: left; vertical-align: top; }
+.md th { background: var(--surface-2); }
+.md code { font-family: var(--mono); font-size: .88em; background: var(--surface-2); padding: .1em .35em; border-radius: 4px; }
+.md pre { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; overflow-x: auto; line-height: 1.5; }
+.md pre code { background: none; padding: 0; font-size: 13px; }
+.md pre code.hljs { padding: 0; background: none; }
+.md blockquote { margin: .8em 0; padding: 0 1em; border-left: 3px solid var(--border); color: var(--muted); }
+.md img, .img { max-width: 100%; border-radius: 8px; border: 1px solid var(--border); cursor: zoom-in; }
+.figure { margin: .8em 0; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); overflow: hidden; }
+.figure .bar { display: flex; justify-content: space-between; align-items: center; padding: 4px 10px; font-size: 12px; color: var(--muted); background: var(--surface-2); border-bottom: 1px solid var(--border); }
+.figure .bar button { font: inherit; font-size: 12px; color: var(--muted); background: none; border: 1px solid var(--border); border-radius: 5px; padding: 1px 8px; cursor: pointer; }
+.figure .view { padding: 12px; overflow-x: auto; text-align: center; }
+.figure .view svg { max-width: 100%; height: auto; }
+.figure iframe { width: 100%; border: 0; display: block; background: #fff; min-height: 80px; }
+.figure pre { margin: 0; border: 0; border-radius: 0; }
+.figure .err { color: var(--error); font-family: var(--mono); font-size: 12px; text-align: left; white-space: pre-wrap; }
+
+/* tools */
+.tool { margin: 4px 0; font-size: 13px; }
+.tool summary { cursor: pointer; color: var(--muted); font-family: var(--mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; list-style: none; }
+.tool summary::before { content: "▸ "; }
+.tool[open] summary::before { content: "▾ "; }
+.tool summary b { color: var(--text); font-weight: 600; }
+.tool .out { margin: 4px 0 8px 14px; padding: 8px 10px; background: var(--surface); border: 1px solid var(--border); border-radius: 6px; font: 12px/1.5 var(--mono); white-space: pre-wrap; word-break: break-all; max-height: 360px; overflow: auto; }
+.tool.error summary { color: var(--error); }
+body.hide-tools .tool { display: none; }
+
+/* paste tray */
+#tray { position: fixed; right: 16px; bottom: 16px; display: flex; flex-direction: column; gap: 8px; z-index: 10; max-width: min(420px, calc(100vw - 32px)); }
+.toast { display: flex; gap: 10px; align-items: center; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 8px; box-shadow: 0 6px 24px rgb(0 0 0 / .15); font-size: 12px; }
+.toast img { width: 56px; height: 56px; object-fit: cover; border-radius: 6px; flex: none; }
+.toast code { font-family: var(--mono); word-break: break-all; }
+.toast button { font: inherit; border: 1px solid var(--border); background: var(--surface-2); color: var(--text); border-radius: 6px; padding: 2px 8px; cursor: pointer; flex: none; }
+.hint { position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%); font-size: 12px; color: var(--muted); background: var(--surface); border: 1px dashed var(--border); border-radius: 999px; padding: 4px 14px; white-space: nowrap; }
+body.dragging::after { content: "ここにドロップして画像を Claude に渡す"; position: fixed; inset: 12px; border: 3px dashed var(--accent); border-radius: 16px; background: color-mix(in srgb, var(--accent-soft) 70%, transparent); display: grid; place-items: center; font-size: 20px; font-weight: 700; z-index: 20; }
+#zoom { position: fixed; inset: 0; background: rgb(0 0 0 / .85); display: none; place-items: center; z-index: 30; cursor: zoom-out; padding: 16px; }
+#zoom.on { display: grid; }
+#zoom img { max-width: 100%; max-height: 100%; }
+.empty { color: var(--muted); text-align: center; padding: 48px 0; }
+</style>
+</head>
+<body>
+<header>
+  <a class="brand" href="/"><img src="/icon.svg" alt="">MEGANE</a>
+  <span class="dot" id="dot"></span>
+  <span class="title" id="title"></span>
+  <label id="toolToggle" hidden><input type="checkbox" id="showTools" checked>ツール</label>
+</header>
+<main id="main"></main>
+<div id="tray"></div>
+<div id="zoom"><img alt=""></div>
+<script>
+const $ = (s, el = document) => el.querySelector(s);
+const h = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
+const dark = matchMedia('(prefers-color-scheme: dark)').matches;
+mermaid.initialize({ startOnLoad: false, theme: dark ? 'dark' : 'default', securityLevel: 'strict' });
+
+// ---------- markdown ----------
+const isLocalPath = p => /^([A-Za-z]:[\\/]|\/(?!\/)|~[\\/])/.test(p);
+marked.use({
+  gfm: true,
+  walkTokens(t) {
+    if (t.type === 'image' && isLocalPath(t.href)) t.href = '/api/file?path=' + encodeURIComponent(t.href);
+  },
+  renderer: {
+    code(code, lang) {
+      const l = (lang || '').trim().split(/\s+/)[0].toLowerCase();
+      if (l === 'mermaid' || l === 'html' || l === 'svg') {
+        return `<div class="figure-slot" data-kind="${l}" data-src="${encodeURIComponent(code)}"></div>`;
+      }
+      const hl = l && hljs.getLanguage(l) ? hljs.highlight(code, { language: l }).value : hljs.highlightAuto(code).value;
+      return `<pre><code class="hljs">${hl}</code></pre>`;
+    }
+  }
+});
+
+let figSeq = 0;
+function figure(kind, src) {
+  const box = h('div', 'figure'), bar = h('div', 'bar'), view = h('div', 'view');
+  const toggle = h('button', null, 'ソース');
+  bar.append(h('span', null, kind), toggle);
+  const source = h('pre'); source.append(h('code', null, src));
+  source.hidden = true;
+  toggle.onclick = () => { const s = source.hidden; source.hidden = !s; view.hidden = s; toggle.textContent = s ? '図' : 'ソース'; };
+  box.append(bar, view, source);
+  if (kind === 'mermaid') {
+    const id = 'mmd' + (++figSeq);
+    mermaid.render(id, src).then(r => { view.innerHTML = r.svg; })
+      .catch(e => { view.append(h('div', 'err', String(e.message || e))); document.getElementById('d' + id)?.remove(); });
+  } else {
+    view.style.padding = '0';
+    const fid = 'f' + (++figSeq);
+    const frame = document.createElement('iframe');
+    frame.setAttribute('sandbox', 'allow-scripts');
+    frame.dataset.fid = fid;
+    const doc = kind === 'svg' ? `<body style="margin:0;display:grid;place-items:center">${src}</body>` : src;
+    frame.srcdoc = doc + `<script>(()=>{const s=()=>parent.postMessage({megane:'${fid}',h:document.documentElement.scrollHeight},'*');new ResizeObserver(s).observe(document.documentElement);addEventListener('load',s);})()<\/script>`;
+    view.append(frame);
+  }
+  return box;
+}
+addEventListener('message', e => {
+  if (!e.data || !e.data.megane) return;
+  const f = document.querySelector(`iframe[data-fid="${e.data.megane}"]`);
+  if (f) f.style.height = Math.min(Math.max(e.data.h, 80), 2400) + 'px';
+});
+
+function markdown(text) {
+  const div = h('div', 'md');
+  div.innerHTML = DOMPurify.sanitize(marked.parse(text));
+  div.querySelectorAll('.figure-slot').forEach(slot => slot.replaceWith(figure(slot.dataset.kind, decodeURIComponent(slot.dataset.src))));
+  div.querySelectorAll('img').forEach(img => img.onclick = () => zoom(img.src));
+  return div;
+}
+function image(b) {
+  const img = h('img', 'img'); img.src = `data:${b.media_type};base64,${b.data}`; img.onclick = () => zoom(img.src); return img;
+}
+function zoom(src) { const z = $('#zoom'); $('img', z).src = src; z.classList.add('on'); }
+$('#zoom').onclick = () => $('#zoom').classList.remove('on');
+
+// ---------- session view ----------
+function sessionView(id) {
+  const main = $('#main'), dot = $('#dot');
+  $('#toolToggle').hidden = false;
+  const showTools = $('#showTools');
+  try { showTools.checked = localStorage.getItem('megane.tools') !== '0'; } catch {}
+  const applyTools = () => { document.body.classList.toggle('hide-tools', !showTools.checked); try { localStorage.setItem('megane.tools', showTools.checked ? '1' : '0'); } catch {} };
+  showTools.onchange = applyTools; applyTools();
+
+  let turn = null, pendingTools = [], ready = false;
+  const nearBottom = () => innerHeight + scrollY >= document.body.scrollHeight - 160;
+  const newTurn = role => { turn = h('section', 'turn ' + role); turn.dataset.role = role; main.append(turn); return turn; };
+
+  function addMessage(msg) {
+    const toolOnly = msg.blocks.every(b => b.type === 'tool_result');
+    const role = msg.role === 'user' && !toolOnly ? 'user' : 'assistant';
+    const stick = !ready || nearBottom();
+    if (!turn || turn.dataset.role !== role || role === 'user') newTurn(role);
+    if (role === 'user') pendingTools = [];
+    for (const b of msg.blocks) {
+      if (b.type === 'text') turn.append(markdown(b.text));
+      else if (b.type === 'image') turn.append(image(b));
+      else if (b.type === 'tool_use') {
+        const d = h('details', 'tool'), s = h('summary');
+        s.append(h('b', null, b.name), ' ' + b.summary);
+        d.append(s); turn.append(d); pendingTools.push(d);
+      } else if (b.type === 'tool_result') {
+        const d = pendingTools.shift() || turn.appendChild(h('details', 'tool'));
+        if (b.is_error) d.classList.add('error');
+        if (b.text) d.append(h('div', 'out', b.text));
+        // Images a tool returned (screenshots, Read of a PNG) are worth seeing without expanding.
+        for (const img of b.images) d.after(image(img));
+      }
+    }
+    if (stick && ready) scrollTo(0, document.body.scrollHeight);
+  }
+
+  const es = new EventSource(`/api/s/${id}/events`);
+  es.addEventListener('meta', e => { const m = JSON.parse(e.data); $('#title').textContent = m.title || m.id; document.title = (m.title || 'Session') + ' · MEGANE'; });
+  es.addEventListener('reset', () => { main.replaceChildren(); turn = null; pendingTools = []; ready = false; });
+  es.addEventListener('msg', e => addMessage(JSON.parse(e.data)));
+  es.addEventListener('ready', () => { ready = true; if (!main.children.length) main.append(h('p', 'empty', 'まだメッセージがありません')); scrollTo(0, document.body.scrollHeight); });
+  es.onopen = () => { dot.classList.add('live'); main.replaceChildren(); turn = null; pendingTools = []; ready = false; };
+  es.onerror = () => dot.classList.remove('live');
+
+  const hint = h('div', 'hint', 'Ctrl+V / ドロップで画像を Claude に渡せます');
+  document.body.append(hint);
+  setupPaste(id, hint);
+}
+
+// ---------- paste & drop ----------
+function setupPaste(id, hint) {
+  async function upload(file) {
+    hint.remove();
+    const res = await fetch(`/api/s/${id}/paste`, { method: 'POST', headers: { 'Content-Type': file.type }, body: file });
+    const toast = h('div', 'toast');
+    const thumb = h('img'); thumb.src = URL.createObjectURL(file);
+    if (!res.ok) { toast.append(thumb, h('span', null, '保存に失敗しました: ' + res.status)); $('#tray').append(toast); return; }
+    const { path } = await res.json();
+    const copy = h('button', null, 'パスをコピー');
+    copy.onclick = () => navigator.clipboard.writeText(path).then(() => copy.textContent = 'コピー済み');
+    const info = h('div'); info.append(h('div', null, '次のプロンプトで Claude に渡します'), h('code', null, path));
+    const close = h('button', null, '×'); close.onclick = () => toast.remove();
+    toast.append(thumb, info, copy, close);
+    $('#tray').append(toast);
+    navigator.clipboard.writeText(path).then(() => copy.textContent = 'コピー済み', () => {});
+  }
+  const images = list => [...list].filter(f => f.type.startsWith('image/'));
+  addEventListener('paste', e => images([...e.clipboardData.items].map(i => i.getAsFile()).filter(Boolean)).forEach(upload));
+  let depth = 0;
+  addEventListener('dragenter', e => { e.preventDefault(); if (++depth === 1) document.body.classList.add('dragging'); });
+  addEventListener('dragleave', () => { if (--depth === 0) document.body.classList.remove('dragging'); });
+  addEventListener('dragover', e => e.preventDefault());
+  addEventListener('drop', e => { e.preventDefault(); depth = 0; document.body.classList.remove('dragging'); images(e.dataTransfer.files).forEach(upload); });
+}
+
+// ---------- session list ----------
+async function listView() {
+  const main = $('#main');
+  $('#title').textContent = 'セッション一覧';
+  $('#dot').classList.add('live');
+  const sessions = await (await fetch('/api/sessions')).json();
+  const filter = h('input', 'filter'); filter.placeholder = 'タイトル・プロジェクトで絞り込み';
+  const list = h('div');
+  const ago = s => { const d = Date.now() / 1000 - s; return d < 60 ? 'たった今' : d < 3600 ? `${Math.floor(d / 60)}分前` : d < 86400 ? `${Math.floor(d / 3600)}時間前` : `${Math.floor(d / 86400)}日前`; };
+  const render = () => {
+    const q = filter.value.toLowerCase();
+    list.replaceChildren(...sessions.filter(s => !q || `${s.title} ${s.project}`.toLowerCase().includes(q)).map(s => {
+      const a = h('a', 'session'); a.href = `/s/${s.id}`;
+      a.append(h('div', 't', s.title || s.id), h('div', 'm', `${ago(s.modified)} · ${s.project}`));
+      return a;
+    }));
+    if (!list.children.length) list.append(h('p', 'empty', 'セッションが見つかりません'));
+  };
+  filter.oninput = render;
+  main.append(filter, list);
+  render();
+  filter.focus();
+}
+
+const m = location.pathname.match(/^\/s\/([\w-]+)$/);
+m ? sessionView(m[1]) : listView();
+</script>
+</body>
+</html>
