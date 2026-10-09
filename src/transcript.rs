@@ -256,3 +256,51 @@ pub fn normalize(line: &str) -> Option<Value> {
         "blocks": blocks,
     }))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn encodes_cwd_like_claude_code() {
+        assert_eq!(encode_cwd(Path::new(r"C:\Users\me\ghq\github.com\a.b")), "C--Users-me-ghq-github-com-a-b");
+        assert_eq!(encode_cwd(Path::new("/home/me/src")), "-home-me-src");
+    }
+
+    #[test]
+    fn strips_reminders_from_user_text() {
+        let line = r#"{"type":"user","uuid":"u","message":{"role":"user","content":"draw it<system-reminder>secret</system-reminder>"}}"#;
+        let msg = normalize(line).unwrap();
+        assert_eq!(msg["role"], "user");
+        assert_eq!(msg["blocks"][0]["text"], "draw it");
+    }
+
+    #[test]
+    fn skips_sidechain_meta_and_other_records() {
+        assert!(normalize(r#"{"type":"user","isSidechain":true,"message":{"content":"x"}}"#).is_none());
+        assert!(normalize(r#"{"type":"user","isMeta":true,"message":{"content":"x"}}"#).is_none());
+        assert!(normalize(r#"{"type":"ai-title","aiTitle":"t"}"#).is_none());
+        assert!(normalize("not json").is_none());
+    }
+
+    #[test]
+    fn summarises_tool_calls_and_results() {
+        let call = r#"{"type":"assistant","message":{"content":[{"type":"thinking","thinking":"hm"},{"type":"tool_use","name":"Bash","input":{"command":"ls -la\npwd"}}]}}"#;
+        let msg = normalize(call).unwrap();
+        assert_eq!(msg["blocks"].as_array().unwrap().len(), 1);
+        assert_eq!(msg["blocks"][0]["summary"], "ls -la");
+
+        let result = r#"{"type":"user","message":{"content":[{"type":"tool_result","is_error":true,"content":[{"type":"text","text":"boom"},{"type":"image","source":{"media_type":"image/png","data":"AA=="}}]}]}}"#;
+        let msg = normalize(result).unwrap();
+        let block = &msg["blocks"][0];
+        assert_eq!(block["text"], "boom");
+        assert_eq!(block["is_error"], true);
+        assert_eq!(block["images"][0]["data"], "AA==");
+    }
+
+    #[test]
+    fn truncates_by_chars() {
+        assert_eq!(truncate("眼鏡眼鏡", 2), "眼鏡…");
+        assert_eq!(truncate("ab", 2), "ab");
+    }
+}

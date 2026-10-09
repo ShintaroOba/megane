@@ -79,7 +79,9 @@ fn open(port: u16, session: Option<String>, list: bool, print: bool) -> Result<(
     let url = format!("http://127.0.0.1:{port}{path}");
     println!("{url}");
     if !print {
-        open::that_detached(&url).context("failed to launch browser")?;
+        if let Err(e) = open::that_detached(&url) {
+            eprintln!("could not launch a browser ({e}); open the URL above yourself");
+        }
     }
     Ok(())
 }
@@ -104,6 +106,12 @@ fn ensure_server(port: u16) -> Result<()> {
         const DETACHED_PROCESS: u32 = 0x0000_0008;
         const CREATE_NO_WINDOW: u32 = 0x0800_0000;
         cmd.creation_flags(DETACHED_PROCESS | CREATE_NO_WINDOW);
+    }
+    #[cfg(unix)]
+    {
+        // Own process group, so the server outlives the shell that started it.
+        use std::os::unix::process::CommandExt;
+        cmd.process_group(0);
     }
     cmd.spawn().context("failed to start megane server")?;
 

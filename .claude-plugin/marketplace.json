@@ -1,0 +1,17 @@
+{
+  "name": "megane",
+  "description": "MEGANE（眼鏡）— ターミナルの Claude Code セッションを、隣のブラウザタブで見やすく描画する（Markdown・表・Mermaid・HTML・画像）",
+  "owner": {
+    "name": "Shintaro Oba",
+    "url": "https://github.com/ShintaroOba"
+  },
+  "plugins": [
+    {
+      "name": "megane",
+      "source": ".",
+      "description": "/megane skill: opens the current Claude Code session in a browser tab with Markdown, tables, Mermaid diagrams, HTML and images rendered, and makes replies browser-friendly. Screenshots pasted into the viewer reach Claude with the next prompt. Installs the prebuilt megane binary when missing.",
+      "category": "developer-tools",
+      "tags": ["claude-code", "viewer", "mermaid"]
+    }
+  ]
+}

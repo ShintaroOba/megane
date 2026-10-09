@@ -1,0 +1,14 @@
+{
+  "name": "megane",
+  "displayName": "MEGANE",
+  "version": "0.1.0",
+  "description": "MEGANE (眼鏡): render the Claude Code session you run in a terminal (Markdown, tables, code, Mermaid, HTML, images) in a browser tab next to it, and hand screenshots pasted there to Claude. /megane opens it; the bundled script installs the prebuilt binary when missing (no Rust needed).",
+  "author": {
+    "name": "Shintaro Oba",
+    "url": "https://github.com/ShintaroOba"
+  },
+  "homepage": "https://github.com/ShintaroOba/megane",
+  "repository": "https://github.com/ShintaroOba/megane",
+  "license": "MIT",
+  "keywords": ["claude-code", "viewer", "mermaid", "markdown", "screenshot"]
+}

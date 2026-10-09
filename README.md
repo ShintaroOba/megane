@@ -12,7 +12,7 @@ so it fits right in with Orca and other session managers.
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey.svg)](#from-the-terminal)
-[![Claude Code](https://img.shields.io/badge/Claude%20Code-viewer-8A2BE2.svg)](#get-started)
+[![Claude Code](https://img.shields.io/badge/Claude%20Code-viewer-8A2BE2.svg)](#get-started-with-the-skill)
 
 **English** | [日本語](README.ja.md)
 
@@ -37,48 +37,78 @@ Everything stays on your machine.
 | **Focus** | Tool calls fold into one-line summaries. Hide them entirely with one checkbox |
 | **Show** | Paste (Ctrl+V) or drop a screenshot into the viewer, and Claude gets it with your next prompt |
 
-## Get started
+## Get started with the skill
 
-**1. Install**
+MEGANE ships as a Claude Code plugin. Install it, ask Claude to open MEGANE, and Claude does
+the rest. No Rust toolchain needed.
 
-```bash
-cargo install --git https://github.com/ShintaroOba/megane
-```
+**1. Install the plugin**
 
-This needs a Rust toolchain. On Windows with the GNU toolchain, see [Development](#development).
-
-**2. Open it from your session**
-
-In Claude Code, type:
+In Claude Code:
 
 ```
-! megane
+/plugin install megane --marketplace ShintaroOba/megane
 ```
 
-The `!` prefix runs the command directly, without a model turn. MEGANE starts its background server
-if needed and opens the session you are in (Claude Code passes it as `$CLAUDE_CODE_SESSION_ID`).
+On Claude Code older than 2.1.275, add the marketplace first:
 
-**3. (Optional) Hand screenshots to Claude**
-
-Add a `UserPromptSubmit` hook to `~/.claude/settings.json`:
-
-```json
-{
-  "hooks": {
-    "UserPromptSubmit": [
-      { "hooks": [{ "type": "command", "command": "megane hook prompt" }] }
-    ]
-  }
-}
+```
+/plugin marketplace add ShintaroOba/megane
+/plugin install megane@megane
 ```
 
-Now paste or drop an image into the viewer. It is saved under `~/.megane/inbox/<session>/`,
-and the next prompt you send in the terminal tells Claude to read it. Without the hook,
-the viewer still copies the saved path to your clipboard so you can paste it into the prompt.
+From a terminal: `claude plugin marketplace add ShintaroOba/megane`, then `claude plugin install megane@megane`.
+
+**2. Ask for it**
+
+```
+/megane
+```
+
+Phrases like "open megane", "show this in the browser" or "this is hard to read in the terminal" trigger
+the skill too.
+
+If the `megane` binary is missing, Claude installs a prebuilt one from
+[GitHub Releases](https://github.com/ShintaroOba/megane/releases) with the bundled script
+(Windows / macOS / Linux), then opens the current session in your browser. From then on, Claude
+knows it is being read in a browser: it draws diagrams as Mermaid and comparisons as tables.
+
+**3. Paste screenshots**
+
+Paste (Ctrl+V) or drop an image into the viewer. It is saved under `~/.megane/inbox/<session>/`,
+and the plugin's `UserPromptSubmit` hook tells Claude to read it with the next prompt you send
+in the terminal. The viewer also copies the saved path to your clipboard, so you can paste it
+into the prompt yourself. If the binary was installed during the session, the hook finds it in
+its install folder; nothing to restart.
 
 ## From the terminal
 
-MEGANE is a single binary of about 1 MB.
+MEGANE also works as a plain command, without the skill. It is a single binary of about 1 MB with
+no runtime dependencies.
+
+### Install the binary
+
+Prebuilt binaries (Windows x64 / arm64, macOS Intel / Apple Silicon, Linux x64 / arm64) are attached
+to every [GitHub Release](https://github.com/ShintaroOba/megane/releases). The install script downloads
+the one for your machine, verifies its SHA-256 and puts it on your PATH.
+
+```bash
+# macOS / Linux: installs to ~/.local/bin
+curl -fsSL https://raw.githubusercontent.com/ShintaroOba/megane/main/scripts/install.sh | sh
+```
+
+```powershell
+# Windows: installs to %LOCALAPPDATA%\Programs\megane and adds it to your user PATH
+irm https://raw.githubusercontent.com/ShintaroOba/megane/main/scripts/install.ps1 | iex
+```
+
+`MEGANE_INSTALL_DIR` changes the location and `MEGANE_VERSION=v0.1.0` pins a release. With a Rust
+toolchain, `cargo install --git https://github.com/ShintaroOba/megane` works too.
+
+### Open a session
+
+In Claude Code, `! megane` runs the command directly, without a model turn, and opens the session
+you are in (Claude Code passes it as `$CLAUDE_CODE_SESSION_ID`).
 
 ```bash
 megane                   # open the current session (start the server if needed)
@@ -95,6 +125,18 @@ in the current directory.
 | --- | --- | --- |
 | `--port <n>` / `MEGANE_PORT` | `4317` | Port to listen on |
 | `CLAUDE_CONFIG_DIR` | `~/.claude` | Claude Code config directory to read from |
+
+Without the plugin, hand screenshots to Claude by adding the hook to `~/.claude/settings.json` yourself:
+
+```json
+{
+  "hooks": {
+    "UserPromptSubmit": [
+      { "hooks": [{ "type": "command", "command": "megane hook prompt" }] }
+    ]
+  }
+}
+```
 
 ### With Orca and other session managers
 
@@ -147,13 +189,21 @@ Write diagrams in ```mermaid fences (MEGANE renders them in the browser). Do not
 ## Development
 
 ```bash
-cargo build --release
+cargo test
 cargo run -- serve
 ```
 
 On Windows with the `stable-x86_64-pc-windows-gnu` toolchain, `windows-sys` needs a full MinGW-w64
 (`dlltool` and `as`). Install one, for example `winget install BrechtSanders.WinLibs.POSIX.UCRT`,
 and put its `mingw64\bin` on `PATH` while building. The MSVC toolchain needs nothing extra.
+
+To release, bump `version` in `Cargo.toml` and `.claude-plugin/plugin.json` to the same number and
+push a `vX.Y.Z` tag. `.github/workflows/release.yml` builds six targets and attaches the archives to a
+GitHub Release, which is where the install scripts download from.
+
+```bash
+git tag v0.1.0 && git push origin v0.1.0
+```
 
 ```
 src/
@@ -164,6 +214,11 @@ src/
 web/
   app.html       the viewer (session list and conversation), embedded into the binary
   icon.svg       the icon
+skills/megane/   the /megane skill
+hooks/           the plugin's UserPromptSubmit hook (runs scripts/hook.sh)
+scripts/         install.sh / install.ps1 (download a prebuilt binary from GitHub Releases), hook.sh
+.claude-plugin/  plugin and marketplace manifests
+.github/workflows/release.yml  builds six targets on a version tag and publishes the release
 ```
 
 ## License

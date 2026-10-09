@@ -12,7 +12,7 @@ Markdown・表・ハイライト付きコード・Mermaid 図・HTML・画像を
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey.svg)](#ターミナルから使う)
-[![Claude Code](https://img.shields.io/badge/Claude%20Code-viewer-8A2BE2.svg)](#はじめかた)
+[![Claude Code](https://img.shields.io/badge/Claude%20Code-viewer-8A2BE2.svg)](#スキルではじめる)
 
 [English](README.md) | **日本語**
 
@@ -37,48 +37,74 @@ Claude Code がもともと書き出している会話ログ（`~/.claude/projec
 | **絞る** | ツール呼び出しは 1 行の要約に折りたたみ。チェックボックス 1 つで丸ごと非表示 |
 | **見せる** | ビューアに Ctrl+V かドラッグ＆ドロップでスクショを入れると、次のプロンプトで Claude に渡る |
 
-## はじめかた
+## スキルではじめる
 
-**1. インストール**
+MEGANE は Claude Code のプラグインとして配布しています。入れたら Claude に「megane を開いて」と頼むだけで、
+あとは Claude がやってくれます。Rust のツールチェーンは要りません。
 
-```bash
-cargo install --git https://github.com/ShintaroOba/megane
-```
+**1. プラグインを入れる**
 
-Rust のツールチェーンが必要です。Windows で GNU ツールチェーンを使う場合は [開発](#開発) を参照してください。
-
-**2. セッションから開く**
-
-Claude Code の入力欄で次のように打ちます。
+Claude Code で次のように打ちます。
 
 ```
-! megane
+/plugin install megane --marketplace ShintaroOba/megane
 ```
 
-`!` を付けるとモデルを介さずにコマンドがそのまま実行されます。MEGANE は必要ならバックグラウンドでサーバーを起動し、
-今いるセッションを開きます（Claude Code が `$CLAUDE_CODE_SESSION_ID` で渡してくれます）。
+Claude Code 2.1.275 より古い場合は、先にマーケットプレイスを追加します。
 
-**3. （任意）スクショを Claude に渡す**
-
-`~/.claude/settings.json` に `UserPromptSubmit` hook を追加します。
-
-```json
-{
-  "hooks": {
-    "UserPromptSubmit": [
-      { "hooks": [{ "type": "command", "command": "megane hook prompt" }] }
-    ]
-  }
-}
+```
+/plugin marketplace add ShintaroOba/megane
+/plugin install megane@megane
 ```
 
-ビューアに画像を貼るかドロップすると `~/.megane/inbox/<session>/` に保存され、
-次にターミナルでプロンプトを送ったときに「この画像を読んで」と Claude に伝わります。
-hook がなくても、保存先のパスがクリップボードに入るので、プロンプトに貼り付ければ渡せます。
+ターミナルからなら `claude plugin marketplace add ShintaroOba/megane` のあと `claude plugin install megane@megane` です。
+
+**2. 呼び出す**
+
+```
+/megane
+```
+
+「megane を開いて」「ブラウザで見たい」「ターミナルだと読みづらい」といった言い方でもスキルが動きます。
+
+`megane` バイナリが無ければ、Claude が同梱のスクリプトで [GitHub Releases](https://github.com/ShintaroOba/megane/releases)
+からビルド済みのものを入れ（Windows / macOS / Linux）、今のセッションをブラウザで開きます。
+それ以降、Claude はブラウザで読まれている前提で、図は Mermaid、比較は表で書くようになります。
+
+**3. スクショを貼る**
+
+ビューアに画像を貼る（Ctrl+V）かドロップすると `~/.megane/inbox/<session>/` に保存され、
+次にターミナルでプロンプトを送ったとき、プラグインの `UserPromptSubmit` hook が「この画像を読んで」と Claude に伝えます。
+保存先のパスはクリップボードにも入るので、自分でプロンプトに貼っても渡せます。
+セッションの途中でバイナリを入れた場合も、hook がインストール先から見つけるので再起動は要りません。
 
 ## ターミナルから使う
 
-MEGANE は約 1 MB の単一バイナリです。
+MEGANE はスキルなしでも、普通のコマンドとして使えます。実行時の依存がない約 1 MB の単一バイナリです。
+
+### バイナリを入れる
+
+ビルド済みバイナリ（Windows x64 / arm64、macOS Intel / Apple Silicon、Linux x64 / arm64）を
+[GitHub Release](https://github.com/ShintaroOba/megane/releases) ごとに添付しています。
+インストールスクリプトがお使いの環境向けのものを取得し、SHA-256 を検証して PATH に置きます。
+
+```bash
+# macOS / Linux: ~/.local/bin に入ります
+curl -fsSL https://raw.githubusercontent.com/ShintaroOba/megane/main/scripts/install.sh | sh
+```
+
+```powershell
+# Windows: %LOCALAPPDATA%\Programs\megane に入れ、ユーザーの PATH に追加します
+irm https://raw.githubusercontent.com/ShintaroOba/megane/main/scripts/install.ps1 | iex
+```
+
+`MEGANE_INSTALL_DIR` で置き場所を、`MEGANE_VERSION=v0.1.0` でバージョンを指定できます。
+Rust のツールチェーンがあれば `cargo install --git https://github.com/ShintaroOba/megane` でも入ります。
+
+### セッションを開く
+
+Claude Code の入力欄で `! megane` と打つと、モデルを介さずにコマンドが実行され、今いるセッションが開きます
+（Claude Code が `$CLAUDE_CODE_SESSION_ID` で渡してくれます）。
 
 ```bash
 megane                   # 今のセッションを開く（必要ならサーバーを起動）
@@ -94,6 +120,18 @@ megane serve             # サーバーをフォアグラウンドで起動
 | --- | --- | --- |
 | `--port <n>` / `MEGANE_PORT` | `4317` | 待ち受けポート |
 | `CLAUDE_CONFIG_DIR` | `~/.claude` | 読み取る Claude Code の設定ディレクトリ |
+
+プラグインを使わずにスクショを Claude に渡したい場合は、`~/.claude/settings.json` に hook を自分で追加します。
+
+```json
+{
+  "hooks": {
+    "UserPromptSubmit": [
+      { "hooks": [{ "type": "command", "command": "megane hook prompt" }] }
+    ]
+  }
+}
+```
 
 ### Orca などのセッション管理ツールと使う
 
@@ -144,13 +182,20 @@ Write diagrams in ```mermaid fences (MEGANE renders them in the browser). Do not
 ## 開発
 
 ```bash
-cargo build --release
+cargo test
 cargo run -- serve
 ```
 
 Windows で `stable-x86_64-pc-windows-gnu` ツールチェーンを使う場合、`windows-sys` のビルドに MinGW-w64 一式（`dlltool` と `as`）が必要です。
 たとえば `winget install BrechtSanders.WinLibs.POSIX.UCRT` で入れ、ビルド時に `mingw64\bin` を `PATH` に通してください。
 MSVC ツールチェーンなら追加のものは要りません。
+
+リリースするときは、`Cargo.toml` と `.claude-plugin/plugin.json` の `version` を同じ番号に上げ、`vX.Y.Z` タグを push します。
+`.github/workflows/release.yml` が 6 ターゲットをビルドして GitHub Release に添付し、インストールスクリプトはそこから取得します。
+
+```bash
+git tag v0.1.0 && git push origin v0.1.0
+```
 
 ```
 src/
@@ -161,6 +206,11 @@ src/
 web/
   app.html       ビューア本体（セッション一覧と会話）。バイナリに埋め込み
   icon.svg       アイコン
+skills/megane/   /megane スキル
+hooks/           プラグインの UserPromptSubmit hook（scripts/hook.sh を実行）
+scripts/         install.sh / install.ps1（GitHub Releases からビルド済みバイナリを取得）、hook.sh
+.claude-plugin/  プラグインとマーケットプレイスのマニフェスト
+.github/workflows/release.yml  バージョンタグで 6 ターゲットをビルドしてリリースを公開
 ```
 
 ## ライセンス
