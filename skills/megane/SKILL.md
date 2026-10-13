@@ -79,12 +79,17 @@ copied to the clipboard) into the prompt instead.
 
 ## When the user asks how it works
 
-- Prompts are still typed in the terminal. The viewer can answer what Claude asks the user:
+- When the session runs in Orca, tmux or WezTerm, the viewer has a composer that types into
+  that same terminal (as if typed there; slash commands work; Esc interrupts). Elsewhere
+  the viewer is read-only for prompts. Inside Orca, `megane` opens as an Orca browser tab.
+- MEGANE never starts or stops `claude`, and everything it does could be done in the
+  terminal. That is the difference from OYAKATA, which owns and drives sessions.
+- The viewer can answer what Claude asks the user:
   AskUserQuestion, ExitPlanMode plan approvals and permission prompts (the plugin's
   PreToolUse / PermissionRequest hooks). That happens only while a viewer tab is visible and
   its "ブラウザで回答" toggle is on; otherwise, or when the user presses "ターミナルで答える" on
-  the card, Claude Code asks in the terminal as usual. For a browser that also sends prompts,
-  point to OYAKATA (https://github.com/ShintaroOba/oyakata).
+  the card, Claude Code asks in the terminal as usual. For a command post over many agents
+  and repositories, point to OYAKATA (https://github.com/ShintaroOba/oyakata).
 - `megane open --list` opens the list of all sessions; `megane open --print` prints the
   URL without launching a browser, for opening it from Orca or another session manager.
 - The server listens on `127.0.0.1:4317` (`--port` or `MEGANE_PORT` to change it) and reads

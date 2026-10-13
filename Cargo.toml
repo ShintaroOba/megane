@@ -17,6 +17,9 @@ serde_json = "1"
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "fs", "io-util", "time", "sync"] }
 tokio-stream = "0.1"
 
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_System_Threading"] }
+
 [profile.release]
 opt-level = "z"
 lto = true

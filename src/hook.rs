@@ -22,11 +22,23 @@ fn read_input() -> Result<Value> {
     Ok(serde_json::from_str(&input).unwrap_or(Value::Null))
 }
 
+/// SessionStart hook: remembers which terminal the session runs in, so the viewer can type
+/// into it. Hooks inherit Claude Code's environment, which is how we can tell.
+pub fn start() -> Result<()> {
+    let v = read_input()?;
+    if let Some(session) = v.get("session_id").and_then(Value::as_str) {
+        crate::bridge::record(session);
+    }
+    Ok(())
+}
+
 /// UserPromptSubmit hook: tells Claude about images pasted since the last prompt.
 /// Whatever this prints on stdout is added to the prompt's context.
 pub fn prompt() -> Result<()> {
     let v = read_input()?;
     let Some(session) = v.get("session_id").and_then(Value::as_str) else { return Ok(()) };
+    // Also here, for sessions that started before MEGANE was installed.
+    crate::bridge::record(session);
 
     let inbox = inbox_dir(session);
     let Ok(entries) = fs::read_dir(&inbox) else { return Ok(()) };

@@ -1,8 +1,10 @@
 //! Reading Claude Code transcripts (~/.claude/projects/<project>/<session>.jsonl).
 
+use std::collections::HashMap;
 use std::fs;
 use std::io::{Read, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
+use std::sync::{Mutex, OnceLock};
 use std::time::SystemTime;
 
 use serde::Serialize;
@@ -16,16 +18,40 @@ pub struct SessionInfo {
     pub id: String,
     pub project: String,
     pub title: Option<String>,
+    /// Working directory the session ran in, from its newest record.
+    pub cwd: Option<String>,
     pub modified: u64,
+    /// Claude Code's own state for a session whose process is alive: "busy", "idle", "waiting"…
+    pub status: Option<String>,
     #[serde(skip)]
     pub path: PathBuf,
 }
 
-pub fn projects_dir() -> PathBuf {
-    let base = std::env::var_os("CLAUDE_CONFIG_DIR")
+fn claude_dir() -> PathBuf {
+    std::env::var_os("CLAUDE_CONFIG_DIR")
         .map(PathBuf::from)
-        .unwrap_or_else(|| dirs::home_dir().unwrap_or_default().join(".claude"));
-    base.join("projects")
+        .unwrap_or_else(|| dirs::home_dir().unwrap_or_default().join(".claude"))
+}
+
+pub fn projects_dir() -> PathBuf {
+    claude_dir().join("projects")
+}
+
+/// Sessions whose Claude Code process is running, with their status. Claude Code keeps one
+/// `~/.claude/sessions/<pid>.json` per process; a file whose pid is gone is stale.
+fn live_sessions() -> HashMap<String, String> {
+    let Ok(entries) = fs::read_dir(claude_dir().join("sessions")) else { return HashMap::new() };
+    entries
+        .flatten()
+        .filter(|e| e.path().extension().is_some_and(|x| x == "json"))
+        .filter_map(|e| serde_json::from_slice::<Value>(&fs::read(e.path()).ok()?).ok())
+        .filter(|v| v.get("pid").and_then(Value::as_u64).is_some_and(|pid| crate::live::alive(pid as u32)))
+        .filter_map(|v| {
+            let id = v.get("sessionId")?.as_str()?.to_string();
+            let status = v.get("status").and_then(Value::as_str).unwrap_or("running").to_string();
+            Some((id, status))
+        })
+        .collect()
 }
 
 /// Claude Code names a project directory after its cwd with every non-alphanumeric char replaced by '-'.
@@ -55,7 +81,9 @@ fn sessions_in(dir: &Path) -> Vec<SessionInfo> {
             id: path.file_stem().unwrap_or_default().to_string_lossy().into_owned(),
             project: project.clone(),
             title: None,
+            cwd: None,
             modified: mtime(&path),
+            status: None,
             path,
         })
         .collect()
@@ -68,10 +96,15 @@ pub fn list_sessions(limit: usize) -> Vec<SessionInfo> {
         .filter(|e| e.path().is_dir())
         .flat_map(|e| sessions_in(&e.path()))
         .collect();
-    all.sort_by(|a, b| b.modified.cmp(&a.modified));
+    let live = live_sessions();
+    for s in &mut all {
+        s.status = live.get(&s.id).cloned();
+    }
+    // Running sessions first, then the most recently updated.
+    all.sort_by(|a, b| (b.status.is_some(), b.modified).cmp(&(a.status.is_some(), a.modified)));
     all.truncate(limit);
     for s in &mut all {
-        s.title = read_title(&s.path);
+        (s.title, s.cwd) = read_meta(&s.path);
     }
     all
 }
@@ -83,12 +116,17 @@ pub fn find_session(id: &str) -> Option<SessionInfo> {
     let projects = fs::read_dir(projects_dir()).ok()?;
     projects.flatten().find_map(|e| {
         let path = e.path().join(format!("{id}.jsonl"));
-        path.is_file().then(|| SessionInfo {
-            id: id.to_string(),
-            project: e.file_name().to_string_lossy().into_owned(),
-            title: read_title(&path),
-            modified: mtime(&path),
-            path,
+        path.is_file().then(|| {
+            let (title, cwd) = read_meta(&path);
+            SessionInfo {
+                id: id.to_string(),
+                project: e.file_name().to_string_lossy().into_owned(),
+                title,
+                cwd,
+                modified: mtime(&path),
+                status: None,
+                path,
+            }
         })
     })
 }
@@ -99,29 +137,57 @@ pub fn latest_for_cwd(cwd: &Path) -> Option<SessionInfo> {
     sessions.into_iter().next()
 }
 
-/// The newest `ai-title` (or last prompt) record, looked up in the file's tail to keep listing cheap.
-fn read_title(path: &Path) -> Option<String> {
+type Meta = (Option<String>, Option<String>);
+
+/// Title and cwd of a session, cached per file size so the list can be refreshed often.
+fn read_meta(path: &Path) -> Meta {
+    static CACHE: OnceLock<Mutex<HashMap<PathBuf, (u64, Meta)>>> = OnceLock::new();
+    let cache = CACHE.get_or_init(Default::default);
+    let len = fs::metadata(path).map_or(0, |m| m.len());
+    if let Some((cached_len, meta)) = cache.lock().unwrap().get(path) {
+        if *cached_len == len {
+            return meta.clone();
+        }
+    }
+    let meta = scan_meta(path).unwrap_or_default();
+    cache.lock().unwrap().insert(path.to_path_buf(), (len, meta.clone()));
+    meta
+}
+
+/// The newest `ai-title` (or last prompt), from the file's tail, and the directory the session
+/// started in, from its head. Reading only the ends keeps listing cheap.
+fn scan_meta(path: &Path) -> Option<Meta> {
+    const HEAD: u64 = 64 * 1024;
     const TAIL: u64 = 256 * 1024;
     let mut f = fs::File::open(path).ok()?;
     let len = f.metadata().ok()?.len();
+
+    let mut head = Vec::new();
+    (&mut f).take(HEAD).read_to_end(&mut head).ok()?;
+    // The first cwd is the one the project folder is named after; later records follow `cd`.
+    let cwd = String::from_utf8_lossy(&head)
+        .lines()
+        .filter(|l| l.contains("\"cwd\""))
+        .find_map(|l| serde_json::from_str::<Value>(l).ok()?.get("cwd")?.as_str().map(str::to_string));
+
     f.seek(SeekFrom::Start(len.saturating_sub(TAIL))).ok()?;
-    let mut buf = Vec::new();
-    f.read_to_end(&mut buf).ok()?;
-    let text = String::from_utf8_lossy(&buf);
-    let mut prompt = None;
-    for line in text.lines().rev() {
+    let mut tail = Vec::new();
+    f.read_to_end(&mut tail).ok()?;
+    let (mut title, mut prompt) = (None, None);
+    for line in String::from_utf8_lossy(&tail).lines().rev() {
         if !line.contains("\"ai-title\"") && !line.contains("\"last-prompt\"") {
             continue;
         }
         let Ok(v) = serde_json::from_str::<Value>(line) else { continue };
         if let Some(t) = v.get("aiTitle").and_then(Value::as_str) {
-            return Some(t.to_string());
+            title = Some(t.to_string());
+            break;
         }
         if prompt.is_none() {
             prompt = v.get("lastPrompt").and_then(Value::as_str).map(|s| truncate(s, 80));
         }
     }
-    prompt
+    Some((title.or(prompt), cwd))
 }
 
 fn truncate(s: &str, max: usize) -> String {

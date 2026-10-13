@@ -37,6 +37,8 @@ Everything stays on your machine.
 | **Focus** | Tool calls fold into one-line summaries. Hide them entirely with one checkbox |
 | **Show** | Paste (Ctrl+V) or drop a screenshot into the viewer, and Claude gets it with your next prompt |
 | **Answer** | When Claude asks a question, wants a plan approved or needs permission to run a tool, a card appears in the viewer. Pick an option, approve or send back the plan, or allow / deny the tool, right there |
+| **Type** | When the session runs in Orca, tmux or WezTerm, a composer at the bottom of the viewer types into that same terminal. Read and write in one place, while the terminal stays the real session |
+| **Switch** | A sidebar lists running sessions (working / waiting / idle) and each project's history. Click to switch |
 
 ## Get started with the skill
 
@@ -152,19 +154,50 @@ MEGANE does not wrap the `claude` process or its terminal, so a session manager 
 Every session has a stable URL, `http://127.0.0.1:4317/s/<session-id>`. Get it with
 `megane open --print <session-id>` and open it wherever your manager can show a browser pane or link.
 
+Inside Orca, `megane` opens the viewer as an Orca browser tab (`orca tab create`) instead of your system
+browser; `megane open --browser` forces the system browser.
+
+### Typing from the viewer
+
+The composer at the bottom of the viewer sends what you write to the terminal the session runs in, as if
+you had typed it there. Slash commands and `!` work as usual, Shift+Enter adds a line, and Esc (or the 中断
+button) interrupts Claude. An image pasted while writing is saved and its path is inserted into the message.
+
+| Terminal | How MEGANE types into it |
+| --- | --- |
+| Orca | `orca terminal send` to the pane the session runs in |
+| tmux | `tmux send-keys` to `$TMUX_PANE` |
+| WezTerm | `wezterm cli send-text` to `$WEZTERM_PANE` |
+| anything else | no composer; the viewer stays read-only and you type in the terminal |
+
+The terminal is found from the environment Claude Code passes to hooks (`megane hook start` at SessionStart,
+and every prompt), and remembered in `~/.megane/terminals/<session>.json`. Nothing is specific to one
+terminal app: each is a small adapter in `src/bridge.rs`.
+
 ## FAQ
+
+**How is this different from OYAKATA?**
+
+[OYAKATA](https://github.com/ShintaroOba/oyakata) is a command post: it starts and owns agent sessions across
+repositories and drives them from the browser. MEGANE is a pair of glasses for the one session in front of you,
+and it keeps three rules:
+
+1. MEGANE never starts or stops `claude`.
+2. Everything you do in MEGANE is something you could do in the terminal: type, answer, interrupt.
+3. The terminal stays fully usable at all times. Closing MEGANE changes nothing.
 
 **Can I send prompts from the browser?**
 
-No. You keep typing prompts in the terminal. What the browser can do is answer what Claude asks *you*:
-questions (AskUserQuestion), plan approvals (ExitPlanMode) and permission prompts.
+Yes, when the session runs in Orca, tmux or WezTerm (see [Typing from the viewer](#typing-from-the-viewer)).
+The prompt is typed into the session's own terminal. Elsewhere you type in the terminal as before.
+
+The browser can also answer what Claude asks *you*: questions (AskUserQuestion), plan approvals (ExitPlanMode)
+and permission prompts.
 
 This only happens while a viewer tab is visible and **ブラウザで回答** (answer in the browser) is on in its
 header. Otherwise, and whenever you press "ターミナルで答える" (answer in the terminal) on a card, Claude Code
 asks in the terminal as usual. While a card is waiting, the terminal shows nothing to answer, so look at the
 browser (the tab title starts with ❓).
-
-If you want a browser command post that also sends prompts, see [OYAKATA](https://github.com/ShintaroOba/oyakata).
 
 **Where does my data go?**
 
@@ -232,7 +265,9 @@ src/
   main.rs        CLI (open, serve, hook) and starting the background server
   server.rs      axum routes, SSE tailing, image paste, local file serving, request guard
   transcript.rs  locating sessions, titles, JSONL → display messages
-  hook.rs        UserPromptSubmit hook and the image inbox
+  hook.rs        hook entry points (start, prompt, pretool, permission) and the image inbox
+  bridge.rs      typing into the session's terminal: Orca / tmux / WezTerm adapters
+  live.rs        whether a Claude Code process is still running
 web/
   app.html       the viewer (session list and conversation), embedded into the binary
   icon.svg       the icon

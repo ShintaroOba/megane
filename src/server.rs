@@ -24,7 +24,7 @@ use tokio::sync::{broadcast, mpsc, oneshot};
 use tokio_stream::wrappers::ReceiverStream;
 use tokio_stream::{Stream, StreamExt};
 
-use crate::{hook, transcript};
+use crate::{bridge, hook, transcript};
 
 const APP_HTML: &str = include_str!("../web/app.html");
 const ICON_SVG: &str = include_str!("../web/icon.svg");
@@ -123,6 +123,8 @@ pub async fn serve(port: u16) -> anyhow::Result<()> {
         .route("/api/s/:id/paste", post(paste).layer(DefaultBodyLimit::max(MAX_PASTE)))
         .route("/api/s/:id/presence", post(presence))
         .route("/api/s/:id/answer", post(answer))
+        .route("/api/s/:id/terminal", get(terminal))
+        .route("/api/s/:id/input", post(input))
         .route("/api/hook/:id", post(hook_wait))
         .route("/api/file", get(file))
         .layer(middleware::from_fn(guard))
@@ -133,7 +135,8 @@ pub async fn serve(port: u16) -> anyhow::Result<()> {
 }
 
 /// Only answer requests addressed to localhost (blocks DNS rebinding). Writes must come from
-/// our own pages (same Origin) or from the `megane hook` commands (custom header).
+/// our own pages (same Origin); the hook route also takes the `megane hook` commands (custom
+/// header). Typing into a terminal is a write, so no other site can drive it.
 async fn guard(headers: HeaderMap, req: Request, next: Next) -> Response {
     let host = headers.get(header::HOST).and_then(|h| h.to_str().ok()).unwrap_or("");
     let host_name = host.rsplit_once(':').map_or(host, |(h, _)| h);
@@ -143,7 +146,9 @@ async fn guard(headers: HeaderMap, req: Request, next: Next) -> Response {
     if req.method() != Method::GET {
         let origin = headers.get(header::ORIGIN).and_then(|h| h.to_str().ok());
         let same_origin = origin == Some(&format!("http://{host}"));
-        let from_hook = origin.is_none() && headers.contains_key(HOOK_HEADER);
+        let from_hook = origin.is_none()
+            && headers.contains_key(HOOK_HEADER)
+            && req.uri().path().starts_with("/api/hook/");
         if !same_origin && !from_hook {
             return StatusCode::FORBIDDEN.into_response();
         }
@@ -300,6 +305,42 @@ async fn hook_wait(State(hub): State<Arc<Hub>>, Path(session): Path<String>, Jso
     }
 }
 
+/// Which terminal the viewer can type into for this session, if any.
+async fn terminal(Path(id): Path<String>) -> Json<Value> {
+    let kind = tokio::task::spawn_blocking(move || bridge::load(&id)).await.ok().flatten().map(|t| t.kind());
+    Json(json!({ "kind": kind }))
+}
+
+#[derive(Deserialize)]
+struct InputBody {
+    #[serde(default)]
+    text: String,
+    #[serde(default)]
+    submit: bool,
+    /// "escape" sends the Esc key instead of text.
+    key: Option<String>,
+}
+
+/// Types into the session's terminal, as if the user had typed there.
+async fn input(Path(id): Path<String>, Json(body): Json<InputBody>) -> Response {
+    let sent = tokio::task::spawn_blocking(move || {
+        let Some(terminal) = bridge::load(&id) else {
+            anyhow::bail!("no terminal to type into is known for this session");
+        };
+        match body.key.as_deref() {
+            Some("escape") => bridge::send(&terminal, bridge::Input::Escape),
+            Some(other) => anyhow::bail!("unknown key {other}"),
+            None => bridge::send(&terminal, bridge::Input::Text { text: &body.text, submit: body.submit }),
+        }
+    })
+    .await;
+    match sent {
+        Ok(Ok(())) => StatusCode::NO_CONTENT.into_response(),
+        Ok(Err(e)) => (StatusCode::CONFLICT, e.to_string()).into_response(),
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+    }
+}
+
 #[derive(Deserialize)]
 struct AnswerBody {
     id: u64,
@@ -314,7 +355,15 @@ async fn answer(State(hub): State<Arc<Hub>>, Path(session): Path<String>, Json(b
     }
 }
 
-async fn paste(Path(id): Path<String>, headers: HeaderMap, body: Bytes) -> Response {
+#[derive(Deserialize)]
+struct PasteQuery {
+    /// The viewer puts the path into its composer itself, so the prompt hook must not
+    /// announce the image again: save it straight into `sent/`.
+    #[serde(default)]
+    direct: Option<String>,
+}
+
+async fn paste(Path(id): Path<String>, Query(q): Query<PasteQuery>, headers: HeaderMap, body: Bytes) -> Response {
     if transcript::find_session(&id).is_none() {
         return StatusCode::NOT_FOUND.into_response();
     }
@@ -325,7 +374,10 @@ async fn paste(Path(id): Path<String>, headers: HeaderMap, body: Bytes) -> Respo
         Some("image/webp") => "webp",
         _ => return StatusCode::UNSUPPORTED_MEDIA_TYPE.into_response(),
     };
-    let dir = hook::inbox_dir(&id);
+    let mut dir = hook::inbox_dir(&id);
+    if q.direct.is_some() {
+        dir.push("sent");
+    }
     let ms = SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |d| d.as_millis());
     let path = dir.join(format!("paste-{ms}.{ext}"));
     let saved = async {

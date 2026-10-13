@@ -1,5 +1,6 @@
 #!/bin/sh
-# Hooks shipped with the plugin: `hook.sh prompt` hands images pasted into the MEGANE viewer
+# Hooks shipped with the plugin: `hook.sh start` remembers the terminal a session runs in;
+# `hook.sh prompt` hands images pasted into the MEGANE viewer
 # to Claude; `hook.sh pretool` / `hook.sh permission` let the viewer answer questions, plan
 # approvals and permission prompts.
 # Looks in the install locations too, because a Claude Code session started before the

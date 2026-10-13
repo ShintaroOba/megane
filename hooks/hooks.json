@@ -1,6 +1,13 @@
 {
-  "description": "MEGANE: hand screenshots pasted into the viewer to Claude, and let the viewer answer questions, plan approvals and permission prompts",
+  "description": "MEGANE: remember the terminal each session runs in, hand screenshots pasted into the viewer to Claude, and let the viewer answer questions, plan approvals and permission prompts",
   "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          { "type": "command", "command": "sh \"${CLAUDE_PLUGIN_ROOT}/scripts/hook.sh\" start", "timeout": 10 }
+        ]
+      }
+    ],
     "UserPromptSubmit": [
       {
         "hooks": [

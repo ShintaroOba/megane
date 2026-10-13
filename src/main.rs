@@ -1,4 +1,6 @@
+mod bridge;
 mod hook;
+mod live;
 mod server;
 mod transcript;
 
@@ -31,9 +33,12 @@ enum Cmd {
         /// Open the session list instead of a single session
         #[arg(long)]
         list: bool,
-        /// Print the URL without launching a browser (for Orca or other session managers)
+        /// Print the URL without launching a browser
         #[arg(long)]
         print: bool,
+        /// Use the system browser even inside a terminal app with its own (Orca)
+        #[arg(long)]
+        browser: bool,
     },
     /// Run the viewer server in the foreground
     Serve,
@@ -46,6 +51,8 @@ enum Cmd {
 
 #[derive(Subcommand)]
 enum HookKind {
+    /// SessionStart: remember which terminal the session runs in
+    Start,
     /// UserPromptSubmit: hand images pasted into the viewer to Claude
     Prompt,
     /// PreToolUse (AskUserQuestion, ExitPlanMode): let the viewer answer
@@ -56,16 +63,21 @@ enum HookKind {
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
-    match cli.cmd.unwrap_or(Cmd::Open { session: None, list: false, print: false }) {
+    match cli.cmd.unwrap_or(Cmd::Open { session: None, list: false, print: false, browser: false }) {
         Cmd::Serve => tokio::runtime::Runtime::new()?.block_on(server::serve(cli.port)),
+        Cmd::Hook { kind: HookKind::Start } => hook::start(),
         Cmd::Hook { kind: HookKind::Prompt } => hook::prompt(),
         Cmd::Hook { kind: HookKind::Pretool } => hook::ask(cli.port, hook::Ask::PreTool),
         Cmd::Hook { kind: HookKind::Permission } => hook::ask(cli.port, hook::Ask::Permission),
-        Cmd::Open { session, list, print } => open(cli.port, session, list, print),
+        Cmd::Open { session, list, print, browser } => open(cli.port, session, list, print, browser),
     }
 }
 
-fn open(port: u16, session: Option<String>, list: bool, print: bool) -> Result<()> {
+fn open(port: u16, session: Option<String>, list: bool, print: bool, browser: bool) -> Result<()> {
+    // Run from inside Claude Code (`! megane`), we can see which terminal this session is in.
+    if let Ok(current) = std::env::var("CLAUDE_CODE_SESSION_ID") {
+        bridge::record(&current);
+    }
     let path = if list {
         "/".to_string()
     } else {
@@ -84,7 +96,9 @@ fn open(port: u16, session: Option<String>, list: bool, print: bool) -> Result<(
     ensure_server(port)?;
     let url = format!("http://127.0.0.1:{port}{path}");
     println!("{url}");
-    if !print {
+    let in_app = !print && !browser
+        && bridge::detect(|k| std::env::var(k).ok()).is_some_and(|t| bridge::open_url(&t, &url));
+    if !print && !in_app {
         if let Err(e) = open::that_detached(&url) {
             eprintln!("could not launch a browser ({e}); open the URL above yourself");
         }

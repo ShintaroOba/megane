@@ -15,7 +15,7 @@
 :root {
   --bg: #fbfaf8; --surface: #ffffff; --surface-2: #f3f1ed; --border: #e4e0d8;
   --text: #1f1d1a; --muted: #6f6a62; --accent: #c4622d; --accent-soft: #f6e4d8;
-  --user-bg: #eef2f7; --error: #b3261e; --ok: #2e7d4f;
+  --user-bg: #eef2f7; --error: #b3261e; --ok: #2e7d4f; --wait: #7c4dde;
   --mono: "Cascadia Code", "Cascadia Mono", Consolas, "BIZ UDGothic", monospace;
   --sans: system-ui, -apple-system, "Segoe UI", "Hiragino Sans", "Yu Gothic UI", Meiryo, sans-serif;
 }
@@ -23,7 +23,7 @@
   :root {
     --bg: #1a1918; --surface: #232220; --surface-2: #2c2a27; --border: #3a3733;
     --text: #ece8e1; --muted: #a39d93; --accent: #e08a5a; --accent-soft: #3d2a1f;
-    --user-bg: #252b33; --error: #f2817a; --ok: #7fcf9c;
+    --user-bg: #252b33; --error: #f2817a; --ok: #7fcf9c; --wait: #b296f5;
   }
 }
 * { box-sizing: border-box; }
@@ -43,12 +43,34 @@ header label { font-size: 13px; color: var(--muted); display: flex; gap: 4px; al
 .dot.live { background: var(--ok); }
 main { max-width: 920px; margin: 0 auto; padding: 16px 16px 160px; }
 
-/* session list */
-.filter { width: 100%; padding: 8px 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text); font: inherit; margin-bottom: 12px; }
-.session { display: block; padding: 10px 12px; border-radius: 8px; text-decoration: none; color: var(--text); border: 1px solid transparent; }
-.session:hover { background: var(--surface); border-color: var(--border); }
-.session .t { font-weight: 600; }
-.session .m { font-size: 12px; color: var(--muted); font-family: var(--mono); }
+header .icon { font: inherit; font-size: 18px; line-height: 1; background: none; border: 1px solid transparent; border-radius: 6px; color: var(--text); cursor: pointer; padding: 3px 7px; }
+header .icon:hover { border-color: var(--border); }
+
+/* sessions: the sidebar and the list page */
+.filter { width: 100%; padding: 7px 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text); font: inherit; font-size: 14px; margin-bottom: 8px; }
+#side { position: fixed; top: var(--head, 49px); left: 0; bottom: 0; width: 300px; background: var(--surface); border-right: 1px solid var(--border); display: none; flex-direction: column; z-index: 8; }
+body.side-open #side { display: flex; }
+@media (min-width: 1100px) {
+  body.side-open main { margin-left: max(300px, calc((100vw - 920px) / 2)); }
+  body.side-open #asks { left: calc(50% + 150px); width: min(760px, calc(100vw - 332px)); }
+}
+@media (max-width: 1099px) { body.side-open #side { box-shadow: 0 12px 40px rgb(0 0 0 / .25); } }
+#side .filter { margin: 10px 10px 4px; width: auto; }
+#side .list { overflow-y: auto; padding: 0 6px 16px; flex: 1; }
+.group { font-size: 11px; font-weight: 700; color: var(--muted); letter-spacing: .04em; padding: 12px 8px 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.session { display: flex; gap: 8px; align-items: flex-start; padding: 7px 8px; border-radius: 8px; text-decoration: none; color: var(--text); border: 1px solid transparent; }
+.session:hover { background: var(--surface-2); }
+.session[aria-current] { background: var(--accent-soft); border-color: var(--accent); }
+.session .st { width: 8px; height: 8px; border-radius: 50%; margin-top: 7px; flex: none; border: 1px solid var(--border); }
+.session .st.busy { background: var(--accent); border-color: var(--accent); }
+.session .st.waiting { background: var(--wait); border-color: var(--wait); }
+.session .st.idle, .session .st.running { background: var(--ok); border-color: var(--ok); }
+.session .b { min-width: 0; flex: 1; }
+.session .t { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font-size: 13px; font-weight: 600; line-height: 1.45; }
+.session .m { display: block; font-size: 11px; color: var(--muted); }
+main .session { padding: 9px 12px; }
+main .session .t { font-size: 15px; }
+main .session .m { font-size: 12px; }
 
 /* conversation */
 .turn { margin: 18px 0; }
@@ -87,7 +109,7 @@ main { max-width: 920px; margin: 0 auto; padding: 16px 16px 160px; }
 body.hide-tools .tool { display: none; }
 
 /* paste tray */
-#tray { position: fixed; right: 16px; bottom: 16px; display: flex; flex-direction: column; gap: 8px; z-index: 10; max-width: min(420px, calc(100vw - 32px)); }
+#tray { position: fixed; right: 16px; bottom: calc(var(--composer-h, 0px) + 16px); display: flex; flex-direction: column; gap: 8px; z-index: 10; max-width: min(420px, calc(100vw - 32px)); }
 .toast { display: flex; gap: 10px; align-items: center; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 8px; box-shadow: 0 6px 24px rgb(0 0 0 / .15); font-size: 12px; }
 .toast img { width: 56px; height: 56px; object-fit: cover; border-radius: 6px; flex: none; }
 .toast code { font-family: var(--mono); word-break: break-all; }
@@ -99,8 +121,22 @@ body.dragging::after { content: "ここにドロップして画像を Claude に
 #zoom img { max-width: 100%; max-height: 100%; }
 .empty { color: var(--muted); text-align: center; padding: 48px 0; }
 
+/* composer: typing into the session's own terminal */
+#composer { position: fixed; left: 0; right: 0; bottom: 0; z-index: 12; background: color-mix(in srgb, var(--bg) 92%, transparent); backdrop-filter: blur(8px); border-top: 1px solid var(--border); padding: 10px 16px 8px; }
+#composer[hidden] { display: none; }
+#composer .row { max-width: 920px; margin: 0 auto; display: flex; gap: 8px; align-items: flex-end; }
+ (min-width: 1100px) { body.side-open #composer { left: 300px; } }
+#composer textarea { flex: 1; font: inherit; font-size: 14px; line-height: 1.5; color: var(--text); background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 8px 12px; resize: none; max-height: 40vh; min-height: 2.6em; }
+#composer textarea:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+#composer button { font: inherit; font-size: 13px; border-radius: 8px; padding: 7px 14px; cursor: pointer; border: 1px solid var(--border); background: var(--surface-2); color: var(--text); flex: none; }
+#composer button.send { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 700; }
+#composer .foot { max-width: 920px; margin: 4px auto 0; font-size: 11px; color: var(--muted); display: flex; gap: 12px; }
+#composer .foot .err { color: var(--error); }
+#composer .foot .grow { flex: 1; }
+body.composing .hint { display: none; }
+
 /* answering from the browser */
-#asks { position: fixed; left: 50%; bottom: 52px; transform: translateX(-50%); width: min(760px, calc(100vw - 32px)); max-height: 72vh; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; z-index: 15; }
+#asks { position: fixed; left: 50%; bottom: calc(var(--composer-h, 0px) + 52px); transform: translateX(-50%); width: min(760px, calc(100vw - 32px)); max-height: 72vh; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; z-index: 15; }
 .ask { background: var(--surface); border: 2px solid var(--accent); border-radius: 12px; padding: 12px 16px; box-shadow: 0 10px 32px rgb(0 0 0 / .22); }
 .ask.sent { opacity: .55; }
 .ask .kind { font-size: 12px; font-weight: 700; color: var(--accent); letter-spacing: .04em; }
@@ -129,13 +165,23 @@ body.dragging::after { content: "ここにドロップして画像を Claude に
 </head>
 <body>
 <header>
+  <button class="icon" id="sideToggle" type="button" title="セッション一覧" hidden>☰</button>
   <a class="brand" href="/"><img src="/icon.svg" alt="">MEGANE</a>
   <span class="dot" id="dot"></span>
   <span class="title" id="title"></span>
   <label id="answerToggle" hidden title="オンでタブが表示されている間は、Claude の質問・プラン承認・実行許可をこの画面で答えます"><input type="checkbox" id="answerHere" checked>ブラウザで回答</label>
   <label id="toolToggle" hidden><input type="checkbox" id="showTools" checked>ツール</label>
 </header>
+<aside id="side"></aside>
 <main id="main"></main>
+<form id="composer" hidden autocomplete="off">
+  <div class="row">
+    <textarea id="composeText" rows="1" placeholder="Claude への入力（ターミナルにそのまま送られます）"></textarea>
+    <button type="button" id="composeStop" title="Esc を送って Claude を止める">中断</button>
+    <button type="submit" class="send">送信</button>
+  </div>
+  <div class="foot"><span>Enter で送信 · Shift+Enter で改行 · 空欄で Esc を押すと中断 · 画像は Ctrl+V</span><span class="grow"></span><span id="composeVia"></span><span class="err" id="composeErr"></span></div>
+</form>
 <div id="asks"></div>
 <div id="tray"></div>
 <div id="zoom"><img alt=""></div>
@@ -258,7 +304,7 @@ function sessionView(id) {
 
   const hint = h('div', 'hint', 'Ctrl+V / ドロップで画像を Claude に渡せます');
   document.body.append(hint);
-  setupPaste(id, hint);
+  setupPaste(id, hint, setupComposer(id));
 }
 
 // ---------- answering questions, plans and permissions ----------
@@ -376,18 +422,78 @@ function setupAsks(id) {
   };
 }
 
+// ---------- composer: typing into the session's own terminal ----------
+// Shown only when the session runs in a terminal MEGANE can type into (Orca, tmux, WezTerm).
+// What is sent arrives in that terminal exactly as if typed there; MEGANE owns nothing.
+function setupComposer(id) {
+  const form = $('#composer'), text = $('#composeText'), err = $('#composeErr');
+  const post = body => fetch(`/api/s/${id}/input`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+    .then(async r => { err.textContent = r.ok ? '' : (await r.text() || `送信に失敗しました (${r.status})`); return r.ok; })
+    .catch(() => { err.textContent = 'サーバーに届きませんでした'; return false; });
+  const fit = () => {
+    text.style.height = 'auto';
+    text.style.height = text.scrollHeight + 2 + 'px';
+    document.documentElement.style.setProperty('--composer-h', form.offsetHeight + 'px');
+  };
+  const show = kind => {
+    form.hidden = false;
+    document.body.classList.add('composing');
+    $('#composeVia').textContent = `${kind} のターミナルに送信`;
+    $('main').style.paddingBottom = '220px';
+    fit();
+  };
+  const check = async () => {
+    try {
+      const { kind } = await (await fetch(`/api/s/${id}/terminal`)).json();
+      if (kind) return show(kind);
+    } catch {}
+    setTimeout(check, 5000);
+  };
+  const send = async () => {
+    const value = text.value;
+    if (!value.trim()) return;
+    if (await post({ text: value, submit: true })) { text.value = ''; fit(); }
+  };
+  form.onsubmit = e => { e.preventDefault(); send(); };
+  text.oninput = fit;
+  text.onkeydown = e => {
+    if (e.isComposing || e.keyCode === 229) return;
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
+    else if (e.key === 'Escape' && !text.value) { e.preventDefault(); post({ key: 'escape' }); }
+  };
+  $('#composeStop').onclick = () => post({ key: 'escape' });
+  addEventListener('resize', () => { if (!form.hidden) fit(); });
+  check();
+  return {
+    active: () => !form.hidden,
+    insert(path) {
+      const at = text.selectionStart ?? text.value.length;
+      const before = text.value.slice(0, at), after = text.value.slice(at);
+      const piece = (before && !/\s$/.test(before) ? ' ' : '') + path + ' ';
+      text.value = before + piece + after;
+      text.focus();
+      text.selectionStart = text.selectionEnd = (before + piece).length;
+      fit();
+    },
+  };
+}
+
 // ---------- paste & drop ----------
-function setupPaste(id, hint) {
+function setupPaste(id, hint, composer) {
   async function upload(file) {
     hint.remove();
-    const res = await fetch(`/api/s/${id}/paste`, { method: 'POST', headers: { 'Content-Type': file.type }, body: file });
+    // With a composer, the path goes straight into the message being written; otherwise the
+    // prompt hook hands it to Claude with the next prompt.
+    const direct = composer.active();
+    const res = await fetch(`/api/s/${id}/paste${direct ? '?direct=1' : ''}`, { method: 'POST', headers: { 'Content-Type': file.type }, body: file });
     const toast = h('div', 'toast');
     const thumb = h('img'); thumb.src = URL.createObjectURL(file);
     if (!res.ok) { toast.append(thumb, h('span', null, '保存に失敗しました: ' + res.status)); $('#tray').append(toast); return; }
     const { path } = await res.json();
     const copy = h('button', null, 'パスをコピー');
     copy.onclick = () => navigator.clipboard.writeText(path).then(() => copy.textContent = 'コピー済み');
-    const info = h('div'); info.append(h('div', null, '次のプロンプトで Claude に渡します'), h('code', null, path));
+    if (direct) composer.insert(path);
+    const info = h('div'); info.append(h('div', null, direct ? '入力欄にパスを入れました' : '次のプロンプトで Claude に渡します'), h('code', null, path));
     const close = h('button', null, '×'); close.onclick = () => toast.remove();
     toast.append(thumb, info, copy, close);
     $('#tray').append(toast);
@@ -402,32 +508,88 @@ function setupPaste(id, hint) {
   addEventListener('drop', e => { e.preventDefault(); depth = 0; document.body.classList.remove('dragging'); images(e.dataTransfer.files).forEach(upload); });
 }
 
-// ---------- session list ----------
-async function listView() {
-  const main = $('#main');
-  $('#title').textContent = 'セッション一覧';
-  $('#dot').classList.add('live');
-  const sessions = await (await fetch('/api/sessions')).json();
-  const filter = h('input', 'filter'); filter.placeholder = 'タイトル・プロジェクトで絞り込み';
-  const list = h('div');
-  const ago = s => { const d = Date.now() / 1000 - s; return d < 60 ? 'たった今' : d < 3600 ? `${Math.floor(d / 60)}分前` : d < 86400 ? `${Math.floor(d / 3600)}時間前` : `${Math.floor(d / 86400)}日前`; };
+// ---------- sessions: the sidebar and the list page ----------
+const STATUS = { busy: '作業中', waiting: '確認待ち', idle: '待機中', running: '実行中' };
+const RUNNING = '実行中のセッション';
+const ago = s => { const d = Date.now() / 1000 - s; return d < 60 ? 'たった今' : d < 3600 ? `${Math.floor(d / 60)}分前` : d < 86400 ? `${Math.floor(d / 3600)}時間前` : `${Math.floor(d / 86400)}日前`; };
+const projectName = s => (s.cwd && s.cwd.split(/[\\/]/).filter(Boolean).pop()) || s.project;
+
+// Running sessions on top, then each project's history. Refreshes every few seconds.
+function sessionList(container, current) {
+  const filter = h('input', 'filter'), list = h('div', 'list');
+  filter.type = 'search'; filter.placeholder = 'タイトル・プロジェクトで絞り込み';
+  container.append(filter, list);
+  let sessions = [], last = '';
   const render = () => {
     const q = filter.value.toLowerCase();
-    list.replaceChildren(...sessions.filter(s => !q || `${s.title} ${s.project}`.toLowerCase().includes(q)).map(s => {
-      const a = h('a', 'session'); a.href = `/s/${s.id}`;
-      a.append(h('div', 't', s.title || s.id), h('div', 'm', `${ago(s.modified)} · ${s.project}`));
-      return a;
-    }));
-    if (!list.children.length) list.append(h('p', 'empty', 'セッションが見つかりません'));
+    const groups = new Map();
+    for (const s of sessions) {
+      if (q && !`${s.title} ${s.cwd || s.project}`.toLowerCase().includes(q)) continue;
+      const g = s.status ? RUNNING : projectName(s);
+      if (!groups.has(g)) groups.set(g, []);
+      groups.get(g).push(s);
+    }
+    const nodes = [];
+    for (const [g, items] of groups) {
+      const head = h('div', 'group', g);
+      if (g !== RUNNING) head.title = items[0].cwd || items[0].project;
+      nodes.push(head);
+      for (const s of items) {
+        const a = h('a', 'session');
+        a.href = `/s/${s.id}`;
+        if (s.id === current) a.setAttribute('aria-current', 'page');
+        const state = s.status && (STATUS[s.status] ? s.status : 'running');
+        const dot = h('span', 'st' + (state ? ' ' + state : ''));
+        dot.title = state ? STATUS[state] : '終了';
+        const body = h('span', 'b');
+        const meta = [state && STATUS[state], ago(s.modified), s.status && projectName(s)].filter(Boolean).join(' · ');
+        body.append(h('span', 't', s.title || s.id), h('span', 'm', meta));
+        a.title = s.cwd || s.project;
+        a.append(dot, body);
+        nodes.push(a);
+      }
+    }
+    if (!nodes.length) nodes.push(h('p', 'empty', 'セッションが見つかりません'));
+    list.replaceChildren(...nodes);
+  };
+  const refresh = async () => {
+    try {
+      const text = await (await fetch('/api/sessions')).text();
+      if (text === last) return;
+      const first = !last;
+      last = text; sessions = JSON.parse(text); render();
+      if (first) list.querySelector('[aria-current]')?.scrollIntoView({ block: 'center' });
+    } catch {}
   };
   filter.oninput = render;
-  main.append(filter, list);
-  render();
-  filter.focus();
+  refresh();
+  setInterval(refresh, 5000);
+  return filter;
 }
 
+function setupSide(id) {
+  const btn = $('#sideToggle');
+  btn.hidden = false;
+  sessionList($('#side'), id);
+  let saved = null;
+  try { saved = localStorage.getItem('megane.side'); } catch {}
+  const wide = matchMedia('(min-width: 1100px)').matches;
+  document.body.classList.toggle('side-open', saved ? saved === '1' : wide);
+  btn.onclick = () => {
+    const open = document.body.classList.toggle('side-open');
+    try { localStorage.setItem('megane.side', open ? '1' : '0'); } catch {}
+  };
+}
+
+function listView() {
+  $('#title').textContent = 'セッション一覧';
+  $('#dot').classList.add('live');
+  sessionList($('#main'), null).focus();
+}
+
+document.documentElement.style.setProperty('--head', $('header').offsetHeight + 'px');
 const m = location.pathname.match(/^\/s\/([\w-]+)$/);
-m ? sessionView(m[1]) : listView();
+if (m) { setupSide(m[1]); sessionView(m[1]); } else listView();
 </script>
 </body>
 </html>
